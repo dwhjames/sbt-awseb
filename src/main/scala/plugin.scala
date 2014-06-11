@@ -10,11 +10,11 @@ import com.amazonaws.auth.profile.ProfileCredentialsProvider
 import com.amazonaws.regions.{ Region, Regions }
 import com.amazonaws.services.elasticbeanstalk.AWSElasticBeanstalkClient
 import com.amazonaws.services.elasticbeanstalk.model._
+import com.amazonaws.services.s3.AmazonS3Client
+
 
 object AWSEBPlugin extends sbt.AutoPlugin {
   object autoImport {
-    type Region = com.amazonaws.regions.Region
-
     val awsCredentialsProfileName = Def.settingKey[Option[String]]("The name of the AWS credentials profile")
 
     val awsCredentialsProvider = Def.settingKey[AWSCredentialsProvider]("The provider of AWS credentials")
@@ -35,9 +35,15 @@ object AWSEBPlugin extends sbt.AutoPlugin {
 
   val ebClient = Def.settingKey[AWSElasticBeanstalkClient]("An AWS Elastic Beanstalk client")
 
+  val s3Client = Def.settingKey[AmazonS3Client]("An AWS S3 client")
+
   val checkDNSAvailability = Def.inputKey[Unit]("Check if the specified CNAME is available")
 
   val cleanApplicationVersions = Def.taskKey[Unit]("Remove the unused application versions")
+
+  val createAppBucket = Def.taskKey[Unit]("Create an S3 bucket in which to store app bundles")
+
+  val deleteAppBucket = Def.taskKey[Unit]("Delete the S3 bucket that stores app bundles")
 
   val deleteApplication = Def.taskKey[Unit]("Delete the application")
 
@@ -85,6 +91,13 @@ object AWSEBPlugin extends sbt.AutoPlugin {
   }
 
 
+  val s3ClientSetting = Def.setting[AmazonS3Client] {
+    val client = new AmazonS3Client(awsCredentialsProvider.value)
+    client.setRegion((ebRegion in awseb).value)
+    client
+  }
+
+
   private def checkDNSAvailabilityTask = Def.inputTask[Unit] {
     val args: Seq[String] = Def.spaceDelimited("<CNAME>").parsed
     if (args.length > 0) {
@@ -127,6 +140,27 @@ object AWSEBPlugin extends sbt.AutoPlugin {
       log.info(s"Requesting the deletion of application version $verLabel")
       client.deleteApplicationVersion(deleteReq.withVersionLabel(verLabel))
     }
+  }
+
+
+  private def createAppBucketTask = Def.task[Unit] {
+    val client = (s3Client in awseb).value
+    val bucketName = (s3AppBucketName in awseb).value
+    val bucket = client.createBucket(bucketName)
+
+    streams.value.log.info(s"""
+    | Creation Date: ${bucket.getCreationDate}
+    | Name: ${bucket.getName}
+    | Owner: ${bucket.getOwner}
+    | ------
+    |""".stripMargin)
+  }
+
+  private def deleteAppBucketTask = Def.task[Unit] {
+    val client = (s3Client in awseb).value
+    val bucketName = (s3AppBucketName in awseb).value
+    streams.value.log.info(s"Requesting that S3 bucket $bucketName be deleted")
+    client.deleteBucket(bucketName)
   }
 
 
@@ -420,6 +454,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
       ebClient in awseb := ebClientSetting.value,
       ebEventLimit in awseb := 10,
       ebRegion in awseb := Region.getRegion(Regions.US_EAST_1),
+      s3Client in awseb := s3ClientSetting.value,
       checkDNSAvailability in awseb <<= checkDNSAvailabilityTask,
       listAvailableSolutionStacks in awseb <<= listAvailableSolutionStacksTask
     )
@@ -429,6 +464,8 @@ object AWSEBPlugin extends sbt.AutoPlugin {
       ebAppName in awseb := moduleName.value,
       s3AppBucketName in awseb <<= Def.setting[String] { "sbt-awseb-bundle-" + (ebAppName in awseb).value },
       cleanApplicationVersions in awseb <<= cleanApplicationVersionsTask,
+      createAppBucket in awseb <<= createAppBucketTask,
+      deleteAppBucket in awseb <<= deleteAppBucketTask,
       deleteApplication in awseb <<= deleteApplicationTask,
       deleteApplicationVersion in awseb <<= deleteApplicationVersionTask,
       describeApplication in awseb <<= describeApplicationTask,
