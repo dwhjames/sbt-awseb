@@ -68,367 +68,349 @@ object AWSEBPlugin extends sbt.AutoPlugin {
   val terminateEnvironment = Def.inputKey[Unit]("Terminate the specified environments")
 
 
-  val awsCredentialsProviderSetting: Def.Initialize[AWSCredentialsProvider] =
-    Def.setting {
-      awsCredentialsProfileName.value match {
-        case None =>
-          new ProfileCredentialsProvider()
-        case Some(profileName) =>
-          new ProfileCredentialsProvider(profileName)
-      }
+  val awsCredentialsProviderSetting = Def.setting[AWSCredentialsProvider] {
+    awsCredentialsProfileName.value match {
+      case None =>
+        new ProfileCredentialsProvider()
+      case Some(profileName) =>
+        new ProfileCredentialsProvider(profileName)
     }
+  }
 
 
-  val ebClientSetting: Def.Initialize[AWSElasticBeanstalkClient] =
-    Def.setting {
-      val client = new AWSElasticBeanstalkClient(awsCredentialsProvider.value)
-      client.setRegion((ebRegion in awseb).value)
-      client
-    }
+  val ebClientSetting = Def.setting[AWSElasticBeanstalkClient] {
+    val client = new AWSElasticBeanstalkClient(awsCredentialsProvider.value)
+    client.setRegion((ebRegion in awseb).value)
+    client
+  }
 
 
-  private def checkDNSAvailabilityTask: Def.Initialize[InputTask[Unit]] =
-    Def.inputTask {
-      val args: Seq[String] = Def.spaceDelimited("<CNAME>").parsed
-      if (args.length > 0) {
-        val cNAMEPrefix = args(0)
-        val res = (ebClient in awseb).value.checkDNSAvailability(new CheckDNSAvailabilityRequest(cNAMEPrefix))
-        val log = streams.value.log
-        log.info(s"""${Option(res.getFullyQualifiedCNAME).getOrElse(cNAMEPrefix)} is ${if (res.isAvailable) "" else "not"} available""")
-      }
-    }
-
-
-  private def cleanApplicationVersionsTask: Def.Initialize[Task[Unit]] =
-    Def.task {
-      val applicationName = (ebAppName in awseb).value
+  private def checkDNSAvailabilityTask = Def.inputTask[Unit] {
+    val args: Seq[String] = Def.spaceDelimited("<CNAME>").parsed
+    if (args.length > 0) {
+      val cNAMEPrefix = args(0)
+      val res = (ebClient in awseb).value.checkDNSAvailability(new CheckDNSAvailabilityRequest(cNAMEPrefix))
       val log = streams.value.log
-      val client = (ebClient in awseb).value
-
-      val applicationVersions = {
-        val apps = client.describeApplications(
-            new DescribeApplicationsRequest()
-              .withApplicationNames(applicationName)
-          ).getApplications.asScala
-        if (apps.isEmpty) {
-          val msg = s"No application called ${applicationName} was found!"
-          log.error(msg)
-          throw new IllegalStateException(msg)
-        } else apps.head.getVersions.asScala.toSet
-      }
-      log.debug(s"Versions for application $applicationName: $applicationVersions")
-
-      val deployedApplicationVersions = client.describeEnvironments(
-          new DescribeEnvironmentsRequest().withApplicationName(applicationName)
-        ).getEnvironments.asScala.map(_.getVersionLabel).toSet
-      log.debug(s"Deployed versions for application $applicationName: $deployedApplicationVersions")
-
-      val deleteReq = new DeleteApplicationVersionRequest().
-                        withApplicationName(applicationName).
-                        withDeleteSourceBundle(true)
-
-      (applicationVersions diff deployedApplicationVersions) foreach { verLabel =>
-        log.info(s"Requesting the deletion of application version $verLabel")
-        client.deleteApplicationVersion(deleteReq.withVersionLabel(verLabel))
-      }
+      log.info(s"""${Option(res.getFullyQualifiedCNAME).getOrElse(cNAMEPrefix)} is ${if (res.isAvailable) "" else "not"} available""")
     }
+  }
 
 
-  private def deleteApplicationTask: Def.Initialize[Task[Unit]] =
-    Def.task {
-      val applicationName = (ebAppName in awseb).value
-      val log = streams.value.log
-      log.info(s"Requesting the deletion of application $applicationName")
-      (ebClient in awseb).value.deleteApplication(new DeleteApplicationRequest(applicationName))
-    }
+  private def cleanApplicationVersionsTask = Def.task[Unit] {
+    val applicationName = (ebAppName in awseb).value
+    val log = streams.value.log
+    val client = (ebClient in awseb).value
 
-
-  private def deleteApplicationVersionTask: Def.Initialize[InputTask[Unit]] =
-    Def.inputTask {
-      val args: Seq[String] = Def.spaceDelimited("<version label>").parsed
-      val applicationName = (ebAppName in awseb).value
-      val log = streams.value.log
-      val client = (ebClient in awseb).value
-      val req = new DeleteApplicationVersionRequest().
-                  withApplicationName(applicationName).
-                  withDeleteSourceBundle(true)
-
-      args foreach { verLabel =>
-        log.info(s"Requesting the deletion of application version $verLabel")
-        client.deleteApplicationVersion(req.withVersionLabel(verLabel))
-      }
-    }
-
-
-  private def describeApplicationTask: Def.Initialize[Task[Unit]] =
-    Def.task {
-      val applicationName = (ebAppName in awseb).value
-      val log = streams.value.log
-      val applications = (ebClient in awseb).value.describeApplications(
+    val applicationVersions = {
+      val apps = client.describeApplications(
           new DescribeApplicationsRequest()
             .withApplicationNames(applicationName)
         ).getApplications.asScala
+      if (apps.isEmpty) {
+        val msg = s"No application called ${applicationName} was found!"
+        log.error(msg)
+        throw new IllegalStateException(msg)
+      } else apps.head.getVersions.asScala.toSet
+    }
+    log.debug(s"Versions for application $applicationName: $applicationVersions")
 
-      if (applications.isEmpty) {
-        log.warn(s"No application called ${applicationName} was found!")
-      }
+    val deployedApplicationVersions = client.describeEnvironments(
+        new DescribeEnvironmentsRequest().withApplicationName(applicationName)
+      ).getEnvironments.asScala.map(_.getVersionLabel).toSet
+    log.debug(s"Deployed versions for application $applicationName: $deployedApplicationVersions")
 
-      applications foreach { app =>
+    val deleteReq = new DeleteApplicationVersionRequest().
+                      withApplicationName(applicationName).
+                      withDeleteSourceBundle(true)
+
+    (applicationVersions diff deployedApplicationVersions) foreach { verLabel =>
+      log.info(s"Requesting the deletion of application version $verLabel")
+      client.deleteApplicationVersion(deleteReq.withVersionLabel(verLabel))
+    }
+  }
+
+
+  private def deleteApplicationTask = Def.task[Unit] {
+    val applicationName = (ebAppName in awseb).value
+    val log = streams.value.log
+    log.info(s"Requesting the deletion of application $applicationName")
+    (ebClient in awseb).value.deleteApplication(new DeleteApplicationRequest(applicationName))
+  }
+
+
+  private def deleteApplicationVersionTask = Def.inputTask[Unit] {
+    val args: Seq[String] = Def.spaceDelimited("<version label>").parsed
+    val applicationName = (ebAppName in awseb).value
+    val log = streams.value.log
+    val client = (ebClient in awseb).value
+    val req = new DeleteApplicationVersionRequest().
+                withApplicationName(applicationName).
+                withDeleteSourceBundle(true)
+
+    args foreach { verLabel =>
+      log.info(s"Requesting the deletion of application version $verLabel")
+      client.deleteApplicationVersion(req.withVersionLabel(verLabel))
+    }
+  }
+
+
+  private def describeApplicationTask = Def.task[Unit] {
+    val applicationName = (ebAppName in awseb).value
+    val log = streams.value.log
+    val applications = (ebClient in awseb).value.describeApplications(
+        new DescribeApplicationsRequest()
+          .withApplicationNames(applicationName)
+      ).getApplications.asScala
+
+    if (applications.isEmpty) {
+      log.warn(s"No application called ${applicationName} was found!")
+    }
+
+    applications foreach { app =>
+      log.info(s"""
+      | Application name: ${app.getApplicationName}
+      | Configuration templates: ${app.getConfigurationTemplates.asScala.mkString(", ")}
+      | Date created: ${app.getDateCreated}
+      | Date updated: ${app.getDateUpdated}
+      | Description: ${app.getDescription}
+      | Versions: ${app.getVersions.asScala.mkString(", ")}
+      | ------
+      |""".stripMargin)
+    }
+  }
+
+
+  private def describeApplicationVersionsTask = Def.task[Unit] {
+    val applicationName = (ebAppName in awseb).value
+    val log = streams.value.log
+    val versions = (ebClient in awseb).value.describeApplicationVersions(
+        new DescribeApplicationVersionsRequest()
+          .withApplicationName(applicationName)
+      ).getApplicationVersions.asScala
+
+    if (versions.isEmpty) {
+      log.warn(s"No versions for application ${applicationName} were found!")
+    }
+
+    versions foreach { ver =>
+      val sourceBundle = ver.getSourceBundle
+      log.info(s"""
+      | Application name: ${ver.getApplicationName}
+      | Date created: ${ver.getDateCreated}
+      | Date updated: ${ver.getDateUpdated}
+      | Description: ${ver.getDescription}
+      | Source bundle: ${ver.getSourceBundle}
+      | Version label: ${ver.getVersionLabel}
+      | ------
+      |""".stripMargin)
+    }
+  }
+
+
+  private def describeEnvironmentsTask = Def.task[Unit] {
+    val applicationName = (ebAppName in awseb).value
+    val log = streams.value.log
+    val environments = (ebClient in awseb).value.describeEnvironments(
+        new DescribeEnvironmentsRequest().withApplicationName(applicationName)
+      ).getEnvironments.asScala
+
+    if (environments.isEmpty) {
+      log.warn(s"No environments for application ${applicationName} were found!")
+    }
+
+    environments foreach { env =>
+      log.info(s"""
+      | Application name: ${env.getApplicationName}
+      | CNAME: ${env.getCNAME}
+      | Date created: ${env.getDateCreated}
+      | Date updated: ${env.getDateUpdated}
+      | Description: ${env.getDescription}
+      | Endpoint URL: ${env.getEndpointURL}
+      | Environment Id: ${env.getEnvironmentId}
+      | Environment name: ${env.getEnvironmentName}
+      | Health: ${env.getHealth}
+      | Solution stack name: ${env.getSolutionStackName}
+      | Status: ${env.getStatus}
+      | Template name: ${env.getTemplateName}
+      | Version label: ${env.getVersionLabel}
+      | Deployed version: ${env.getVersionLabel}
+      | ------
+      |""".stripMargin)
+    }
+  }
+
+
+  private def describeEnvironmentResourcesTask = Def.inputTask[Unit] {
+    val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
+    val log = streams.value.log
+    if (args.length != 1) {
+      log.error("describeEnvironmentResources requires an environment name")
+    } else {
+      val resources = (ebClient in awseb).value.describeEnvironmentResources(
+          new DescribeEnvironmentResourcesRequest()
+            .withEnvironmentName(args(0))
+        ).getEnvironmentResources()
+
+      log.info(s"""
+      | Environment name: ${resources.getEnvironmentName}
+      | Autoscaling groups: ${resources.getAutoScalingGroups.asScala.map(_.getName).mkString(", ")}
+      | Instances: ${resources.getInstances.asScala.map(_.getId).mkString(", ")}
+      | Launch configurations: ${resources.getLaunchConfigurations.asScala.map(_.getName).mkString(", ")}
+      | Load balancers: ${resources.getLoadBalancers.asScala.map(_.getName).mkString(", ")}
+      | Queues: ${resources.getQueues.asScala.mkString(", ")}
+      | Triggers: ${resources.getTriggers.asScala.map(_.getName).mkString(", ")}
+      | ------
+      |""".stripMargin)
+    }
+  }
+
+
+  private def describeEventsTask = Def.inputTask[Unit] {
+    val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
+    val applicationName = (ebAppName in awseb).value
+    val limit = (ebEventLimit in awseb).value
+    val log = streams.value.log
+    val req = new DescribeEventsRequest().
+                withApplicationName(applicationName).
+                withMaxRecords(limit)
+
+    if (args.length > 0) {
+      req.setEnvironmentId(args(0))
+    }
+
+    val events = (ebClient in awseb).value.describeEvents(req).getEvents().asScala
+
+    events foreach { ev =>
+      log.info(s"""
+      | Application name: ${ev.getApplicationName}
+      | Environment name: ${ev.getEnvironmentName}
+      | Event date: ${ev.getEventDate}
+      | Message: ${ev.getMessage}
+      | Request Id: ${ev.getRequestId}
+      | Severity: ${ev.getSeverity}
+      | Template name: ${ev.getTemplateName}
+      | Version label: ${ev.getVersionLabel}
+      | ------
+      |""".stripMargin)
+    }
+  }
+
+
+  private def listAvailableSolutionStacksTask = Def.task[Unit] {
+    val log = streams.value.log
+    (ebClient in awseb).value.listAvailableSolutionStacks().getSolutionStackDetails.asScala foreach { solStack =>
+      log.info(s"""
+      | Solution stack name: ${solStack.getSolutionStackName}
+      | Permitted file types: ${solStack.getPermittedFileTypes.asScala.mkString(", ")}
+      | ------
+      |""".stripMargin)
+    }
+  }
+
+
+  private def rebuildEnvironmentTask = Def.inputTask[Unit] {
+    val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
+    val log = streams.value.log
+    val client = (ebClient in awseb).value
+
+    args foreach { envName =>
+      log.info(s"Requesting that environment $envName be rebuilt")
+      client.rebuildEnvironment(new RebuildEnvironmentRequest().withEnvironmentName(envName))
+    }
+  }
+
+
+  private def requestEnvironmentInfoTask = Def.inputTask[Unit] {
+    val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
+    val log = streams.value.log
+    val client = (ebClient in awseb).value
+    val req = new RequestEnvironmentInfoRequest().withInfoType(EnvironmentInfoType.Tail)
+
+    args foreach { envName =>
+      log.info(s"Requesting information for environment $envName")
+      client.requestEnvironmentInfo(req.withEnvironmentName(envName))
+    }
+  }
+
+
+  private def restartAppServerTask = Def.inputTask[Unit] {
+    val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
+    val log = streams.value.log
+    val client = (ebClient in awseb).value
+
+    args foreach { envName =>
+      log.info(s"Requesting that app server for environment $envName be restarted")
+      client.restartAppServer(new RestartAppServerRequest().withEnvironmentName(envName))
+    }
+  }
+
+
+  private def retrieveEnvironmentInfoTask = Def.inputTask[Unit] {
+    val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
+    val log = streams.value.log
+    val client = (ebClient in awseb).value
+    val req = new RetrieveEnvironmentInfoRequest().withInfoType(EnvironmentInfoType.Tail)
+
+    args foreach { envName =>
+      log.info(s"Retrieving information for environment $envName")
+      client.retrieveEnvironmentInfo(req.withEnvironmentName(envName)).getEnvironmentInfo.asScala foreach { envInfo =>
         log.info(s"""
-        | Application name: ${app.getApplicationName}
-        | Configuration templates: ${app.getConfigurationTemplates.asScala.mkString(", ")}
-        | Date created: ${app.getDateCreated}
-        | Date updated: ${app.getDateUpdated}
-        | Description: ${app.getDescription}
-        | Versions: ${app.getVersions.asScala.mkString(", ")}
+        | EC2 instance Id: ${envInfo.getEc2InstanceId}
+        | Info type: ${envInfo.getInfoType}
+        | Message: ${envInfo.getMessage}
+        | Sample timestamp: ${envInfo.getSampleTimestamp}
         | ------
         |""".stripMargin)
       }
     }
+  }
 
 
-  private def describeApplicationVersionsTask: Def.Initialize[Task[Unit]] =
-    Def.task {
-      val applicationName = (ebAppName in awseb).value
-      val log = streams.value.log
-      val versions = (ebClient in awseb).value.describeApplicationVersions(
-          new DescribeApplicationVersionsRequest()
-            .withApplicationName(applicationName)
-        ).getApplicationVersions.asScala
+  private def swapEnvironmentCNAMEsTask = Def.inputTask[Unit] {
+    val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
+    val log = streams.value.log
 
-      if (versions.isEmpty) {
-        log.warn(s"No versions for application ${applicationName} were found!")
-      }
-
-      versions foreach { ver =>
-        val sourceBundle = ver.getSourceBundle
-        log.info(s"""
-        | Application name: ${ver.getApplicationName}
-        | Date created: ${ver.getDateCreated}
-        | Date updated: ${ver.getDateUpdated}
-        | Description: ${ver.getDescription}
-        | Source bundle: ${ver.getSourceBundle}
-        | Version label: ${ver.getVersionLabel}
-        | ------
-        |""".stripMargin)
-      }
+    if (args.length != 2) {
+      log.error(s"swapEnvironmentCNAMEs requires two environment names")
+    } else {
+      log.info(s"Requesting a swap of the CNAME from environments ${args(0)} to ${args(1)}")
+      (ebClient in awseb).value.swapEnvironmentCNAMEs(
+          new SwapEnvironmentCNAMEsRequest()
+            .withSourceEnvironmentName(args(0))
+            .withDestinationEnvironmentName(args(1))
+        )
     }
+  }
 
 
-  private def describeEnvironmentsTask: Def.Initialize[Task[Unit]] =
-    Def.task {
-      val applicationName = (ebAppName in awseb).value
-      val log = streams.value.log
-      val environments = (ebClient in awseb).value.describeEnvironments(
-          new DescribeEnvironmentsRequest().withApplicationName(applicationName)
-        ).getEnvironments.asScala
+  private def terminateEnvironmentTask = Def.inputTask[Unit] {
+    val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
+    val log = streams.value.log
+    val client = (ebClient in awseb).value
+    val req = new TerminateEnvironmentRequest().withTerminateResources(true)
 
-      if (environments.isEmpty) {
-        log.warn(s"No environments for application ${applicationName} were found!")
-      }
-
-      environments foreach { env =>
-        log.info(s"""
-        | Application name: ${env.getApplicationName}
-        | CNAME: ${env.getCNAME}
-        | Date created: ${env.getDateCreated}
-        | Date updated: ${env.getDateUpdated}
-        | Description: ${env.getDescription}
-        | Endpoint URL: ${env.getEndpointURL}
-        | Environment Id: ${env.getEnvironmentId}
-        | Environment name: ${env.getEnvironmentName}
-        | Health: ${env.getHealth}
-        | Solution stack name: ${env.getSolutionStackName}
-        | Status: ${env.getStatus}
-        | Template name: ${env.getTemplateName}
-        | Version label: ${env.getVersionLabel}
-        | Deployed version: ${env.getVersionLabel}
-        | ------
-        |""".stripMargin)
-      }
+    args foreach { envName =>
+      log.info(s"Requesting termination of environment $envName")
+      val res = client.terminateEnvironment(req.withEnvironmentName(envName))
+      log.info(s"""
+      | Application name: ${res.getApplicationName}
+      | CNAME: ${res.getCNAME}
+      | Date created: ${res.getDateCreated}
+      | Date updated: ${res.getDateUpdated}
+      | Description: ${res.getDescription}
+      | Endpoint URL: ${res.getEndpointURL}
+      | Environment Id: ${res.getEnvironmentId}
+      | Environment name: ${res.getEnvironmentName}
+      | Health: ${res.getHealth}
+      | Solution stack name: ${res.getSolutionStackName}
+      | Status: ${res.getStatus}
+      | Template name: ${res.getTemplateName}
+      | Tier: ${res.getTier}
+      | Version label: ${res.getVersionLabel}
+      | ------
+      |""".stripMargin)
     }
-
-
-  private def describeEnvironmentResourcesTask: Def.Initialize[InputTask[Unit]] =
-    Def.inputTask {
-      val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
-      val log = streams.value.log
-      if (args.length != 1) {
-        log.error("describeEnvironmentResources requires an environment name")
-      } else {
-        val resources = (ebClient in awseb).value.describeEnvironmentResources(
-            new DescribeEnvironmentResourcesRequest()
-              .withEnvironmentName(args(0))
-          ).getEnvironmentResources()
-
-        log.info(s"""
-        | Environment name: ${resources.getEnvironmentName}
-        | Autoscaling groups: ${resources.getAutoScalingGroups.asScala.map(_.getName).mkString(", ")}
-        | Instances: ${resources.getInstances.asScala.map(_.getId).mkString(", ")}
-        | Launch configurations: ${resources.getLaunchConfigurations.asScala.map(_.getName).mkString(", ")}
-        | Load balancers: ${resources.getLoadBalancers.asScala.map(_.getName).mkString(", ")}
-        | Queues: ${resources.getQueues.asScala.mkString(", ")}
-        | Triggers: ${resources.getTriggers.asScala.map(_.getName).mkString(", ")}
-        | ------
-        |""".stripMargin)
-      }
-    }
-
-
-  private def describeEventsTask: Def.Initialize[InputTask[Unit]] =
-    Def.inputTask {
-      val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
-      val applicationName = (ebAppName in awseb).value
-      val limit = (ebEventLimit in awseb).value
-      val log = streams.value.log
-      val req = new DescribeEventsRequest().
-                  withApplicationName(applicationName).
-                  withMaxRecords(limit)
-
-      if (args.length > 0) {
-        req.setEnvironmentId(args(0))
-      }
-
-      val events = (ebClient in awseb).value.describeEvents(req).getEvents().asScala
-
-      events foreach { ev =>
-        log.info(s"""
-        | Application name: ${ev.getApplicationName}
-        | Environment name: ${ev.getEnvironmentName}
-        | Event date: ${ev.getEventDate}
-        | Message: ${ev.getMessage}
-        | Request Id: ${ev.getRequestId}
-        | Severity: ${ev.getSeverity}
-        | Template name: ${ev.getTemplateName}
-        | Version label: ${ev.getVersionLabel}
-        | ------
-        |""".stripMargin)
-      }
-    }
-
-
-  private def listAvailableSolutionStacksTask: Def.Initialize[Task[Unit]] =
-    Def.task {
-      val log = streams.value.log
-      (ebClient in awseb).value.listAvailableSolutionStacks().getSolutionStackDetails.asScala foreach { solStack =>
-        log.info(s"""
-        | Solution stack name: ${solStack.getSolutionStackName}
-        | Permitted file types: ${solStack.getPermittedFileTypes.asScala.mkString(", ")}
-        | ------
-        |""".stripMargin)
-      }
-    }
-
-
-  private def rebuildEnvironmentTask: Def.Initialize[InputTask[Unit]] =
-    Def.inputTask {
-      val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
-      val log = streams.value.log
-      val client = (ebClient in awseb).value
-
-      args foreach { envName =>
-        log.info(s"Requesting that environment $envName be rebuilt")
-        client.rebuildEnvironment(new RebuildEnvironmentRequest().withEnvironmentName(envName))
-      }
-    }
-
-
-  private def requestEnvironmentInfoTask: Def.Initialize[InputTask[Unit]] =
-    Def.inputTask {
-      val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
-      val log = streams.value.log
-      val client = (ebClient in awseb).value
-      val req = new RequestEnvironmentInfoRequest().withInfoType(EnvironmentInfoType.Tail)
-
-      args foreach { envName =>
-        log.info(s"Requesting information for environment $envName")
-        client.requestEnvironmentInfo(req.withEnvironmentName(envName))
-      }
-    }
-
-
-  private def restartAppServerTask: Def.Initialize[InputTask[Unit]] =
-    Def.inputTask {
-      val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
-      val log = streams.value.log
-      val client = (ebClient in awseb).value
-
-      args foreach { envName =>
-        log.info(s"Requesting that app server for environment $envName be restarted")
-        client.restartAppServer(new RestartAppServerRequest().withEnvironmentName(envName))
-      }
-    }
-
-
-  private def retrieveEnvironmentInfoTask: Def.Initialize[InputTask[Unit]] =
-    Def.inputTask {
-      val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
-      val log = streams.value.log
-      val client = (ebClient in awseb).value
-      val req = new RetrieveEnvironmentInfoRequest().withInfoType(EnvironmentInfoType.Tail)
-
-      args foreach { envName =>
-        log.info(s"Retrieving information for environment $envName")
-        client.retrieveEnvironmentInfo(req.withEnvironmentName(envName)).getEnvironmentInfo.asScala foreach { envInfo =>
-          log.info(s"""
-          | EC2 instance Id: ${envInfo.getEc2InstanceId}
-          | Info type: ${envInfo.getInfoType}
-          | Message: ${envInfo.getMessage}
-          | Sample timestamp: ${envInfo.getSampleTimestamp}
-          | ------
-          |""".stripMargin)
-        }
-      }
-    }
-
-
-  private def swapEnvironmentCNAMEsTask: Def.Initialize[InputTask[Unit]] =
-    Def.inputTask {
-      val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
-      val log = streams.value.log
-
-      if (args.length != 2) {
-        log.error(s"swapEnvironmentCNAMEs requires two environment names")
-      } else {
-        log.info(s"Requesting a swap of the CNAME from environments ${args(0)} to ${args(1)}")
-        (ebClient in awseb).value.swapEnvironmentCNAMEs(
-            new SwapEnvironmentCNAMEsRequest()
-              .withSourceEnvironmentName(args(0))
-              .withDestinationEnvironmentName(args(1))
-          )
-      }
-    }
-
-
-  private def terminateEnvironmentTask: Def.Initialize[InputTask[Unit]] =
-    Def.inputTask {
-      val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
-      val log = streams.value.log
-      val client = (ebClient in awseb).value
-      val req = new TerminateEnvironmentRequest().withTerminateResources(true)
-
-      args foreach { envName =>
-        log.info(s"Requesting termination of environment $envName")
-        val res = client.terminateEnvironment(req.withEnvironmentName(envName))
-        log.info(s"""
-        | Application name: ${res.getApplicationName}
-        | CNAME: ${res.getCNAME}
-        | Date created: ${res.getDateCreated}
-        | Date updated: ${res.getDateUpdated}
-        | Description: ${res.getDescription}
-        | Endpoint URL: ${res.getEndpointURL}
-        | Environment Id: ${res.getEnvironmentId}
-        | Environment name: ${res.getEnvironmentName}
-        | Health: ${res.getHealth}
-        | Solution stack name: ${res.getSolutionStackName}
-        | Status: ${res.getStatus}
-        | Template name: ${res.getTemplateName}
-        | Tier: ${res.getTier}
-        | Version label: ${res.getVersionLabel}
-        | ------
-        |""".stripMargin)
-      }
-    }
+  }
 
 
   override lazy val buildSettings =
