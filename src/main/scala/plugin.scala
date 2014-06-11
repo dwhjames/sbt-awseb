@@ -79,6 +79,12 @@ object AWSEBPlugin extends sbt.AutoPlugin {
   val retrieveEnvironmentInfo = InputKey[Unit](
     "retrieveEnvironmentInfo", "Retrieve information for the specified environments")
 
+  val swapEnvironmentCNAMEs = InputKey[Unit](
+    "swapEnvironmentCNAMEs", "Swap the CNAMEs of the two specified environments")
+
+  val terminateEnvironment = InputKey[Unit](
+    "terminateEnvironment", "Terminate the specified environments")
+
 
   val awsCredentialsProviderSetting: Def.Initialize[AWSCredentialsProvider] =
     Def.setting {
@@ -358,6 +364,56 @@ object AWSEBPlugin extends sbt.AutoPlugin {
       }
     }
 
+
+  private def swapEnvironmentCNAMEsTask: Def.Initialize[InputTask[Unit]] =
+    Def.inputTask {
+      val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
+      val log = streams.value.log
+
+      if (args.length != 2) {
+        log.error(s"swapEnvironmentCNAMEs requires two environment names")
+      } else {
+        log.info(s"Requesting a swap of the CNAME from environments ${args(0)} to ${args(1)}")
+        (ebClient in awseb).value.swapEnvironmentCNAMEs(
+            new SwapEnvironmentCNAMEsRequest()
+              .withSourceEnvironmentName(args(0))
+              .withDestinationEnvironmentName(args(1))
+          )
+      }
+    }
+
+
+  private def terminateEnvironmentTask: Def.Initialize[InputTask[Unit]] =
+    Def.inputTask {
+      val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
+      val log = streams.value.log
+      val client = (ebClient in awseb).value
+      val req = new TerminateEnvironmentRequest().withTerminateResources(true)
+
+      args foreach { envName =>
+        log.info(s"Requesting termination of environment $envName")
+        val res = client.terminateEnvironment(req.withEnvironmentName(envName))
+        log.info(s"""
+        | Application name: ${res.getApplicationName}
+        | CNAME: ${res.getCNAME}
+        | Date created: ${res.getDateCreated}
+        | Date updated: ${res.getDateUpdated}
+        | Description: ${res.getDescription}
+        | Endpoint URL: ${res.getEndpointURL}
+        | Environment Id: ${res.getEnvironmentId}
+        | Environment name: ${res.getEnvironmentName}
+        | Health: ${res.getHealth}
+        | Solution stack name: ${res.getSolutionStackName}
+        | Status: ${res.getStatus}
+        | Template name: ${res.getTemplateName}
+        | Tier: ${res.getTier}
+        | Version label: ${res.getVersionLabel}
+        | ------
+        |""".stripMargin)
+      }
+    }
+
+
   override lazy val buildSettings =
     Seq(
       awsCredentialsProfileName := None,
@@ -382,6 +438,8 @@ object AWSEBPlugin extends sbt.AutoPlugin {
       rebuildEnvironment in awseb <<= rebuildEnvironmentTask,
       requestEnvironmentInfo in awseb <<= requestEnvironmentInfoTask,
       restartAppServer in awseb <<= restartAppServerTask,
-      retrieveEnvironmentInfo in awseb <<= retrieveEnvironmentInfoTask
+      retrieveEnvironmentInfo in awseb <<= retrieveEnvironmentInfoTask,
+      swapEnvironmentCNAMEs in awseb <<= swapEnvironmentCNAMEsTask,
+      terminateEnvironment in awseb <<= terminateEnvironmentTask
     )
 }
