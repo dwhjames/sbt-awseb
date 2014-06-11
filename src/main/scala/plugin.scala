@@ -43,6 +43,9 @@ object AWSEBPlugin extends sbt.AutoPlugin {
   val checkDNSAvailability = InputKey[Unit](
     "checkDNSAvailability", "Check if the specified CNAME is available")
 
+  val cleanApplicationVersions = TaskKey[Unit](
+    "cleanApplicationVersions", "Remove the unused application versions")
+
   val deleteApplication = TaskKey[Unit](
     "deleteApplication", "Delete the application")
 
@@ -113,6 +116,41 @@ object AWSEBPlugin extends sbt.AutoPlugin {
         val res = (ebClient in awseb).value.checkDNSAvailability(new CheckDNSAvailabilityRequest(cNAMEPrefix))
         val log = streams.value.log
         log.info(s"""${Option(res.getFullyQualifiedCNAME).getOrElse(cNAMEPrefix)} is ${if (res.isAvailable) "" else "not"} available""")
+      }
+    }
+
+
+  private def cleanApplicationVersionsTask: Def.Initialize[Task[Unit]] =
+    Def.task {
+      val applicationName = (ebAppName in awseb).value
+      val log = streams.value.log
+      val client = (ebClient in awseb).value
+
+      val applicationVersions = {
+        val apps = client.describeApplications(
+            new DescribeApplicationsRequest()
+              .withApplicationNames(applicationName)
+          ).getApplications.asScala
+        if (apps.isEmpty) {
+          val msg = s"No application called ${applicationName} was found!"
+          log.error(msg)
+          throw new IllegalStateException(msg)
+        } else apps.head.getVersions.asScala.toSet
+      }
+      log.debug(s"Versions for application $applicationName: $applicationVersions")
+
+      val deployedApplicationVersions = client.describeEnvironments(
+          new DescribeEnvironmentsRequest().withApplicationName(applicationName)
+        ).getEnvironments.asScala.map(_.getVersionLabel).toSet
+      log.debug(s"Deployed versions for application $applicationName: $deployedApplicationVersions")
+
+      val deleteReq = new DeleteApplicationVersionRequest().
+                        withApplicationName(applicationName).
+                        withDeleteSourceBundle(true)
+
+      (applicationVersions diff deployedApplicationVersions) foreach { verLabel =>
+        log.info(s"Requesting the deletion of application version $verLabel")
+        client.deleteApplicationVersion(deleteReq.withVersionLabel(verLabel))
       }
     }
 
@@ -428,6 +466,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
   override lazy val projectSettings =
     Seq(
       ebAppName in awseb := moduleName.value,
+      cleanApplicationVersions in awseb <<= cleanApplicationVersionsTask,
       deleteApplication in awseb <<= deleteApplicationTask,
       deleteApplicationVersion in awseb <<= deleteApplicationVersionTask,
       describeApplication in awseb <<= describeApplicationTask,
