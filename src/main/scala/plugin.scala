@@ -33,6 +33,9 @@ object AWSEBPlugin extends sbt.AutoPlugin {
     val ebRegion = SettingKey[Region](
       "ebRegion", "The AWS region in which to communicate with Elastic Beanstalk")
 
+    val s3AppBucketName = SettingKey[String](
+      "s3AppBucketName", "The S3 bucket in which to store app bundles")
+
   }
   import autoImport._
   // override def trigger = allRequirements
@@ -466,6 +469,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
   override lazy val projectSettings =
     Seq(
       ebAppName in awseb := moduleName.value,
+      s3AppBucketName in awseb <<= Def.setting[String] { "sbt-awseb-bundle-" + (ebAppName in awseb).value },
       cleanApplicationVersions in awseb <<= cleanApplicationVersionsTask,
       deleteApplication in awseb <<= deleteApplicationTask,
       deleteApplicationVersion in awseb <<= deleteApplicationVersionTask,
