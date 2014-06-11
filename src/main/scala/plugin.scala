@@ -15,81 +15,57 @@ object AWSEBPlugin extends sbt.AutoPlugin {
   object autoImport {
     type Region = com.amazonaws.regions.Region
 
-    val awsCredentialsProfileName = SettingKey[Option[String]](
-      "awsCredentialsProfileName", "The name of the AWS credentials profile")
+    val awsCredentialsProfileName = Def.settingKey[Option[String]]("The name of the AWS credentials profile")
 
-    val awsCredentialsProvider = SettingKey[AWSCredentialsProvider](
-      "awsCredentialsProvider", "The provider of AWS credentials")
+    val awsCredentialsProvider = Def.settingKey[AWSCredentialsProvider]("The provider of AWS credentials")
 
-    val awseb = TaskKey[String](
-      "awseb", "sbt-awseb is an interface for AWS Elastic Beanstalk")
+    val awseb = Def.taskKey[String]("sbt-awseb is an interface for AWS Elastic Beanstalk")
 
-    val ebAppName = SettingKey[String](
-      "ebAppName", "The name of the Beanstalk application, defaults to the module name")
+    val ebAppName = Def.settingKey[String]("The name of the Beanstalk application, defaults to the module name")
 
-    val ebEventLimit = SettingKey[Int](
-      "ebEventLimit", "The limit for the number of recent events to list")
+    val ebEventLimit = Def.settingKey[Int]("The limit for the number of recent events to list")
 
-    val ebRegion = SettingKey[Region](
-      "ebRegion", "The AWS region in which to communicate with Elastic Beanstalk")
+    val ebRegion = Def.settingKey[Region]("The AWS region in which to communicate with Elastic Beanstalk")
 
-    val s3AppBucketName = SettingKey[String](
-      "s3AppBucketName", "The S3 bucket in which to store app bundles")
+    val s3AppBucketName = Def.settingKey[String]("The S3 bucket in which to store app bundles")
 
   }
   import autoImport._
   // override def trigger = allRequirements
 
-  val ebClient = SettingKey[AWSElasticBeanstalkClient](
-    "ebClient", "An AWS Elastic Beanstalk client")
+  val ebClient = Def.settingKey[AWSElasticBeanstalkClient]("An AWS Elastic Beanstalk client")
 
-  val checkDNSAvailability = InputKey[Unit](
-    "checkDNSAvailability", "Check if the specified CNAME is available")
+  val checkDNSAvailability = Def.inputKey[Unit]("Check if the specified CNAME is available")
 
-  val cleanApplicationVersions = TaskKey[Unit](
-    "cleanApplicationVersions", "Remove the unused application versions")
+  val cleanApplicationVersions = Def.taskKey[Unit]("Remove the unused application versions")
 
-  val deleteApplication = TaskKey[Unit](
-    "deleteApplication", "Delete the application")
+  val deleteApplication = Def.taskKey[Unit]("Delete the application")
 
-  val deleteApplicationVersion = InputKey[Unit](
-    "deleteApplicationVersion", "Delete the specified application versions")
+  val deleteApplicationVersion = Def.inputKey[Unit]("Delete the specified application versions")
 
-  val describeApplication = TaskKey[Unit](
-    "describeApplication", "Describe the application")
+  val describeApplication = Def.taskKey[Unit]("Describe the application")
 
-  val describeApplicationVersions = TaskKey[Unit](
-    "describeApplicationVersions", "Describe the version of the application")
+  val describeApplicationVersions = Def.taskKey[Unit]("Describe the version of the application")
 
-  val describeEnvironments = TaskKey[Unit](
-    "describeEnvironments", "Describe the environments")
+  val describeEnvironments = Def.taskKey[Unit]("Describe the environments")
 
-  val describeEnvironmentResources = InputKey[Unit](
-    "describeEnvironmentResources", "Describe the resources of the specified environment")
+  val describeEnvironmentResources = Def.inputKey[Unit]("Describe the resources of the specified environment")
 
-  val describeEvents = InputKey[Unit](
-    "describeEvents", "Describe the recent events for an application")
+  val describeEvents = Def.inputKey[Unit]("Describe the recent events for an application")
 
-  val listAvailableSolutionStacks = TaskKey[Unit](
-    "listAvailableSolutionStacks", "List the available solution stacks")
+  val listAvailableSolutionStacks = Def.taskKey[Unit]("List the available solution stacks")
 
-  val rebuildEnvironment = InputKey[Unit](
-    "rebuildEnvironment", "Rebuild the specified environments")
+  val rebuildEnvironment = Def.inputKey[Unit]("Rebuild the specified environments")
 
-  val requestEnvironmentInfo = InputKey[Unit](
-    "requestEnvironmentInfo", "Request information for the specified environments")
+  val requestEnvironmentInfo = Def.inputKey[Unit]("Request information for the specified environments")
 
-  val restartAppServer = InputKey[Unit](
-    "restartAppServer", "Restart the app server for the specified environments")
+  val restartAppServer = Def.inputKey[Unit]("Restart the app server for the specified environments")
 
-  val retrieveEnvironmentInfo = InputKey[Unit](
-    "retrieveEnvironmentInfo", "Retrieve information for the specified environments")
+  val retrieveEnvironmentInfo = Def.inputKey[Unit]("Retrieve information for the specified environments")
 
-  val swapEnvironmentCNAMEs = InputKey[Unit](
-    "swapEnvironmentCNAMEs", "Swap the CNAMEs of the two specified environments")
+  val swapEnvironmentCNAMEs = Def.inputKey[Unit]("Swap the CNAMEs of the two specified environments")
 
-  val terminateEnvironment = InputKey[Unit](
-    "terminateEnvironment", "Terminate the specified environments")
+  val terminateEnvironment = Def.inputKey[Unit]("Terminate the specified environments")
 
 
   val awsCredentialsProviderSetting: Def.Initialize[AWSCredentialsProvider] =
