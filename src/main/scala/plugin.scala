@@ -15,6 +15,8 @@ import com.amazonaws.services.s3.AmazonS3Client
 
 object AWSEBPlugin extends sbt.AutoPlugin {
   object autoImport {
+    case class EBEnvironment(envName: String, cname: String, solutionStackName: String)
+
     val awsCredentialsProfileName = Def.settingKey[Option[String]]("The name of the AWS credentials profile")
 
     val awsCredentialsProvider = Def.settingKey[AWSCredentialsProvider]("The provider of AWS credentials")
@@ -22,6 +24,10 @@ object AWSEBPlugin extends sbt.AutoPlugin {
     val awseb = Def.taskKey[String]("sbt-awseb is an interface for AWS Elastic Beanstalk")
 
     val ebAppName = Def.settingKey[String]("The name of the Beanstalk application, defaults to the module name")
+
+    val ebAppDescription = Def.settingKey[Option[String]]("The description of the Beanstalk application, defaults to None")
+
+    val ebEnvMap = Def.settingKey[Map[String, EBEnvironment]]("The map of environments for a Beanstalk application, defaults to empty")
 
     val ebEventLimit = Def.settingKey[Int]("The limit for the number of recent events to list")
 
@@ -42,6 +48,8 @@ object AWSEBPlugin extends sbt.AutoPlugin {
   val cleanApplicationVersions = Def.taskKey[Unit]("Remove the unused application versions")
 
   val createAppBucket = Def.taskKey[Unit]("Create an S3 bucket in which to store app bundles")
+
+  val createApplication = Def.taskKey[Unit]("Create an Elastic Beanstalk application")
 
   val deleteAppBucket = Def.taskKey[Unit]("Delete the S3 bucket that stores app bundles")
 
@@ -156,6 +164,32 @@ object AWSEBPlugin extends sbt.AutoPlugin {
     |""".stripMargin)
   }
 
+
+  private def applicationDescriptionToString(app: ApplicationDescription): String = {
+    s"""
+    | Application name: ${app.getApplicationName}
+    | Configuration templates: ${app.getConfigurationTemplates.asScala.mkString(", ")}
+    | Date created: ${app.getDateCreated}
+    | Date updated: ${app.getDateUpdated}
+    | Description: ${app.getDescription}
+    | Versions: ${app.getVersions.asScala.mkString(", ")}
+    | ------
+    |""".stripMargin
+  }
+
+
+  private def createApplicationTask = Def.task[Unit] {
+    val client = (ebClient in awseb).value
+    val applicationName = (ebAppName in awseb).value
+    val req = new CreateApplicationRequest(applicationName)
+    val applicationDescription = (ebAppDescription in awseb).value
+    applicationDescription foreach { desc => req.setDescription(desc) }
+
+    val app = client.createApplication(req).getApplication()
+
+    streams.value.log.info(applicationDescriptionToString(app))
+  }
+
   private def deleteAppBucketTask = Def.task[Unit] {
     val client = (s3Client in awseb).value
     val bucketName = (s3AppBucketName in awseb).value
@@ -201,15 +235,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
     }
 
     applications foreach { app =>
-      log.info(s"""
-      | Application name: ${app.getApplicationName}
-      | Configuration templates: ${app.getConfigurationTemplates.asScala.mkString(", ")}
-      | Date created: ${app.getDateCreated}
-      | Date updated: ${app.getDateUpdated}
-      | Description: ${app.getDescription}
-      | Versions: ${app.getVersions.asScala.mkString(", ")}
-      | ------
-      |""".stripMargin)
+      log.info(applicationDescriptionToString(app))
     }
   }
 
@@ -462,9 +488,12 @@ object AWSEBPlugin extends sbt.AutoPlugin {
   override lazy val projectSettings =
     Seq(
       ebAppName in awseb := moduleName.value,
+      ebAppDescription in awseb := None,
       s3AppBucketName in awseb <<= Def.setting[String] { "sbt-awseb-bundle-" + (ebAppName in awseb).value },
+      ebEnvMap in awseb := Map.empty[String, EBEnvironment],
       cleanApplicationVersions in awseb <<= cleanApplicationVersionsTask,
       createAppBucket in awseb <<= createAppBucketTask,
+      createApplication in awseb <<= createApplicationTask,
       deleteAppBucket in awseb <<= deleteAppBucketTask,
       deleteApplication in awseb <<= deleteApplicationTask,
       deleteApplicationVersion in awseb <<= deleteApplicationVersionTask,
