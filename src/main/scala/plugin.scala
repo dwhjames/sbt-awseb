@@ -59,6 +59,8 @@ object AWSEBPlugin extends sbt.AutoPlugin {
 
   val createApplicationVersion = Def.inputKey[String]("Create an Elastic Beanstalk application, returning the version label")
 
+  val createEnvironment = Def.inputKey[String]("Create an Elastic Beanstalk environment")
+
   val deleteAppBucket = Def.taskKey[Unit]("Delete the S3 bucket that stores app bundles")
 
   val deleteApplication = Def.taskKey[Unit]("Delete the application")
@@ -237,6 +239,59 @@ object AWSEBPlugin extends sbt.AutoPlugin {
   }
 
 
+  private def createEnvironmentTask = Def.inputTaskDyn[String] {
+    val args: Seq[String] = Def.spaceDelimited("<environment alias>").parsed
+    val log = streams.value.log
+    val envMap = (ebEnvMap in awseb).value
+
+    if (args.length == 0 || !envMap.contains(args(0))) {
+      val msg = "createEnvironmentTask requires an environment alias defined in ebEnvMap"
+      log.error(msg)
+      throw new IllegalArgumentException(msg)
+    } else {
+      val envDef = envMap(args(0))
+      val applicationName = (ebAppName in awseb).value
+      val client = (ebClient in awseb).value
+
+      val versionLabelTask = if (args.length > 1) {
+        Def.inputTask[String] { args(1) }
+      } else {
+        (createApplicationVersion in awseb)
+      }
+
+      Def.task[String] {
+        val versionLabel = versionLabelTask.toTask(if (args.length > 2) args.drop(2).map(s => s""" "$s" """).mkString("") else "").value
+
+        val env = client.createEnvironment(
+          new CreateEnvironmentRequest(applicationName, envDef.envName)
+            .withCNAMEPrefix(envDef.cname)
+            .withSolutionStackName(envDef.solutionStackName)
+            .withVersionLabel(versionLabel))
+
+        log.info(s"""
+        | Application name: ${env.getApplicationName}
+        | CNAME: ${env.getCNAME}
+        | Date created: ${env.getDateCreated}
+        | Date updated: ${env.getDateUpdated}
+        | Description: ${env.getDescription}
+        | Endpoint URL: ${env.getEndpointURL}
+        | Environment Id: ${env.getEnvironmentId}
+        | Environment name: ${env.getEnvironmentName}
+        | Health: ${env.getHealth}
+        | Solution stack name: ${env.getSolutionStackName}
+        | Status: ${env.getStatus}
+        | Template name: ${env.getTemplateName}
+        | Tier: ${env.getTier}
+        | Version label: ${env.getVersionLabel}
+        | ------
+        |""".stripMargin)
+
+        versionLabel
+      }
+    }
+  }
+
+
   private def deleteAppBucketTask = Def.task[Unit] {
     val client = (s3Client in awseb).value
     val bucketName = (s3AppBucketName in awseb).value
@@ -330,8 +385,8 @@ object AWSEBPlugin extends sbt.AutoPlugin {
       | Solution stack name: ${env.getSolutionStackName}
       | Status: ${env.getStatus}
       | Template name: ${env.getTemplateName}
+      | Tier: ${env.getTier}
       | Version label: ${env.getVersionLabel}
-      | Deployed version: ${env.getVersionLabel}
       | ------
       |""".stripMargin)
     }
@@ -600,6 +655,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
       createAppBucket in awseb <<= createAppBucketTask,
       createApplication in awseb <<= createApplicationTask,
       createApplicationVersion in awseb <<= createApplicationVersionTask,
+      createEnvironment in awseb <<= createEnvironmentTask,
       deleteAppBucket in awseb <<= deleteAppBucketTask,
       deleteApplication in awseb <<= deleteApplicationTask,
       deleteApplicationVersion in awseb <<= deleteApplicationVersionTask,
