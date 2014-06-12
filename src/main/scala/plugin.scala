@@ -91,6 +91,8 @@ object AWSEBPlugin extends sbt.AutoPlugin {
 
   val updateApplication = Def.taskKey[Unit]("Update the application description")
 
+  val updateApplicationVersion = Def.inputKey[Unit]("Update the description for the specified application version")
+
   val uploadAppBundle = Def.taskKey[S3Location]("Upload the application bundle to S3")
 
 
@@ -539,6 +541,29 @@ object AWSEBPlugin extends sbt.AutoPlugin {
   }
 
 
+  private def updateApplicationVersionTask = Def.inputTask[Unit] {
+    val args: Seq[String] = Def.spaceDelimited("<version label and description>").parsed
+    val log = streams.value.log
+
+    if (args.length == 0) {
+      log.error("updateApplication requires at least a version label")
+    } else {
+      val versionLabel = args(0)
+      val applicationDescription = args.tail.mkString(", ")
+      val client = (ebClient in awseb).value
+      val applicationName = (ebAppName in awseb).value
+
+      val app = client.updateApplicationVersion(
+                  new UpdateApplicationVersionRequest(applicationName, versionLabel)
+                    // empty string will zero out description on Beanstalk
+                    .withDescription(applicationDescription)
+                ).getApplicationVersion()
+
+      log.info(applicationVersionDescriptionToString(app))
+    }
+  }
+
+
   private def uploadAppBundleTask = Def.task[S3Location] {
     val log = streams.value.log
     val client = (s3Client in awseb).value
@@ -590,6 +615,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
       swapEnvironmentCNAMEs in awseb <<= swapEnvironmentCNAMEsTask,
       terminateEnvironment in awseb <<= terminateEnvironmentTask,
       updateApplication in awseb <<= updateApplicationTask,
+      updateApplicationVersion in awseb <<= updateApplicationVersionTask,
       uploadAppBundle in awseb <<= uploadAppBundleTask
     )
 }
