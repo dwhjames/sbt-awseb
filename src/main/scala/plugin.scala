@@ -5,6 +5,8 @@ import Keys._
 
 import scala.collection.JavaConverters._
 
+import java.io.File
+
 import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.auth.profile.ProfileCredentialsProvider
 import com.amazonaws.regions.{ Region, Regions }
@@ -24,6 +26,8 @@ object AWSEBPlugin extends sbt.AutoPlugin {
     val awseb = Def.taskKey[String]("sbt-awseb is an interface for AWS Elastic Beanstalk")
 
     val ebAppName = Def.settingKey[String]("The name of the Beanstalk application, defaults to the module name")
+
+    val ebAppBundle = Def.taskKey[File]("The bundle file that packages the Beanstalk application")
 
     val ebAppDescription = Def.settingKey[Option[String]]("The description of the Beanstalk application, defaults to None")
 
@@ -80,6 +84,8 @@ object AWSEBPlugin extends sbt.AutoPlugin {
   val swapEnvironmentCNAMEs = Def.inputKey[Unit]("Swap the CNAMEs of the two specified environments")
 
   val terminateEnvironment = Def.inputKey[Unit]("Terminate the specified environments")
+
+  val uploadAppBundle = Def.taskKey[S3Location]("Upload the application bundle to S3")
 
 
   val awsCredentialsProviderSetting = Def.setting[AWSCredentialsProvider] {
@@ -489,6 +495,19 @@ object AWSEBPlugin extends sbt.AutoPlugin {
   }
 
 
+  private def uploadAppBundleTask = Def.task[S3Location] {
+    val log = streams.value.log
+    val client = (s3Client in awseb).value
+    val bucketName = (s3AppBucketName in awseb).value
+    val file = (ebAppBundle in awseb).value
+
+    log.info(s"Uploading application bundle from $file to bucket $bucketName")
+    val location = S3FileUploader.upload(client, bucketName, file)
+    log.info(s"$location")
+    location
+  }
+
+
   override lazy val buildSettings =
     Seq(
       awsCredentialsProfileName := None,
@@ -523,6 +542,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
       restartAppServer in awseb <<= restartAppServerTask,
       retrieveEnvironmentInfo in awseb <<= retrieveEnvironmentInfoTask,
       swapEnvironmentCNAMEs in awseb <<= swapEnvironmentCNAMEsTask,
-      terminateEnvironment in awseb <<= terminateEnvironmentTask
+      terminateEnvironment in awseb <<= terminateEnvironmentTask,
+      uploadAppBundle in awseb <<= uploadAppBundleTask
     )
 }
