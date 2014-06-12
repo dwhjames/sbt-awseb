@@ -31,6 +31,8 @@ object AWSEBPlugin extends sbt.AutoPlugin {
 
     val ebAppDescription = Def.settingKey[Option[String]]("The description of the Beanstalk application, defaults to None")
 
+    val ebAppVersionLabel = Def.taskKey[String]("A version label generator")
+
     val ebEnvMap = Def.settingKey[Map[String, EBEnvironment]]("The map of environments for a Beanstalk application, defaults to empty")
 
     val ebEventLimit = Def.settingKey[Int]("The limit for the number of recent events to list")
@@ -541,6 +543,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
       ebAppName in awseb := moduleName.value,
       ebAppDescription in awseb := None,
       s3AppBucketName in awseb <<= Def.setting[String] { "sbt-awseb-bundle-" + (ebAppName in awseb).value },
+      ebAppVersionLabel in awseb <<= Def.task[String] { s"${version.value}-${ISO8601.timestamp()}" },
       ebEnvMap in awseb := Map.empty[String, EBEnvironment],
       cleanApplicationVersions in awseb <<= cleanApplicationVersionsTask,
       createAppBucket in awseb <<= createAppBucketTask,
