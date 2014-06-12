@@ -57,6 +57,8 @@ object AWSEBPlugin extends sbt.AutoPlugin {
 
   val createApplication = Def.taskKey[Unit]("Create an Elastic Beanstalk application")
 
+  val createApplicationVersion = Def.inputKey[String]("Create an Elastic Beanstalk application, returning the version label")
+
   val deleteAppBucket = Def.taskKey[Unit]("Delete the S3 bucket that stores app bundles")
 
   val deleteApplication = Def.taskKey[Unit]("Delete the application")
@@ -200,6 +202,39 @@ object AWSEBPlugin extends sbt.AutoPlugin {
     streams.value.log.info(applicationDescriptionToString(app))
   }
 
+
+  private def applicationVersionDescriptionToString(ver: ApplicationVersionDescription): String = {
+    s"""
+    | Application name: ${ver.getApplicationName}
+    | Date created: ${ver.getDateCreated}
+    | Date updated: ${ver.getDateUpdated}
+    | Description: ${ver.getDescription}
+    | Source bundle: ${ver.getSourceBundle}
+    | Version label: ${ver.getVersionLabel}
+    | ------
+    |""".stripMargin
+  }
+
+
+  private def createApplicationVersionTask = Def.inputTask[String] {
+    val args: Seq[String] = Def.spaceDelimited("<version description>").parsed
+    val versionDescription = args.mkString(", ")
+    val log = streams.value.log
+    val applicationName = (ebAppName in awseb).value
+    val versionLabel = (ebAppVersionLabel in awseb).value
+
+    log.info(s"Creating version $versionLabel for application $applicationName")
+    val app = (ebClient in awseb).value.createApplicationVersion(
+        new CreateApplicationVersionRequest(applicationName, versionLabel)
+          .withDescription(versionDescription)
+          .withSourceBundle((uploadAppBundle in awseb).value)
+      ).getApplicationVersion()
+
+    log.info(applicationVersionDescriptionToString(app))
+    versionLabel
+  }
+
+
   private def deleteAppBucketTask = Def.task[Unit] {
     val client = (s3Client in awseb).value
     val bucketName = (s3AppBucketName in awseb).value
@@ -263,16 +298,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
     }
 
     versions foreach { ver =>
-      val sourceBundle = ver.getSourceBundle
-      log.info(s"""
-      | Application name: ${ver.getApplicationName}
-      | Date created: ${ver.getDateCreated}
-      | Date updated: ${ver.getDateUpdated}
-      | Description: ${ver.getDescription}
-      | Source bundle: ${ver.getSourceBundle}
-      | Version label: ${ver.getVersionLabel}
-      | ------
-      |""".stripMargin)
+      log.info(applicationVersionDescriptionToString(ver))
     }
   }
 
@@ -548,6 +574,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
       cleanApplicationVersions in awseb <<= cleanApplicationVersionsTask,
       createAppBucket in awseb <<= createAppBucketTask,
       createApplication in awseb <<= createApplicationTask,
+      createApplicationVersion in awseb <<= createApplicationVersionTask,
       deleteAppBucket in awseb <<= deleteAppBucketTask,
       deleteApplication in awseb <<= deleteApplicationTask,
       deleteApplicationVersion in awseb <<= deleteApplicationVersionTask,
