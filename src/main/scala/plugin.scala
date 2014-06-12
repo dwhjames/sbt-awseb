@@ -303,12 +303,13 @@ object AWSEBPlugin extends sbt.AutoPlugin {
   private def describeEnvironmentResourcesTask = Def.inputTask[Unit] {
     val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
     val log = streams.value.log
-    if (args.length != 1) {
-      log.error("describeEnvironmentResources requires an environment name")
-    } else {
+    val envMap = (ebEnvMap in awseb).value
+
+    args foreach { arg =>
+      val envName = envMap.get(arg).map(_.envName).getOrElse(arg)
       val resources = (ebClient in awseb).value.describeEnvironmentResources(
           new DescribeEnvironmentResourcesRequest()
-            .withEnvironmentName(args(0))
+            .withEnvironmentName(envName)
         ).getEnvironmentResources()
 
       log.info(s"""
@@ -335,7 +336,9 @@ object AWSEBPlugin extends sbt.AutoPlugin {
                 withMaxRecords(limit)
 
     if (args.length > 0) {
-      req.setEnvironmentId(args(0))
+      val envMap = (ebEnvMap in awseb).value
+      val envName = envMap.get(args(0)).map(_.envName).getOrElse(args(0))
+      req.setEnvironmentName(envName)
     }
 
     val events = (ebClient in awseb).value.describeEvents(req).getEvents().asScala
@@ -372,8 +375,10 @@ object AWSEBPlugin extends sbt.AutoPlugin {
     val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
     val log = streams.value.log
     val client = (ebClient in awseb).value
+    val envMap = (ebEnvMap in awseb).value
 
-    args foreach { envName =>
+    args foreach { arg =>
+      val envName = envMap.get(arg).map(_.envName).getOrElse(arg)
       log.info(s"Requesting that environment $envName be rebuilt")
       client.rebuildEnvironment(new RebuildEnvironmentRequest().withEnvironmentName(envName))
     }
@@ -385,8 +390,10 @@ object AWSEBPlugin extends sbt.AutoPlugin {
     val log = streams.value.log
     val client = (ebClient in awseb).value
     val req = new RequestEnvironmentInfoRequest().withInfoType(EnvironmentInfoType.Tail)
+    val envMap = (ebEnvMap in awseb).value
 
-    args foreach { envName =>
+    args foreach { arg =>
+      val envName = envMap.get(arg).map(_.envName).getOrElse(arg)
       log.info(s"Requesting information for environment $envName")
       client.requestEnvironmentInfo(req.withEnvironmentName(envName))
     }
@@ -397,8 +404,10 @@ object AWSEBPlugin extends sbt.AutoPlugin {
     val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
     val log = streams.value.log
     val client = (ebClient in awseb).value
+    val envMap = (ebEnvMap in awseb).value
 
-    args foreach { envName =>
+    args foreach { arg =>
+      val envName = envMap.get(arg).map(_.envName).getOrElse(arg)
       log.info(s"Requesting that app server for environment $envName be restarted")
       client.restartAppServer(new RestartAppServerRequest().withEnvironmentName(envName))
     }
@@ -410,8 +419,10 @@ object AWSEBPlugin extends sbt.AutoPlugin {
     val log = streams.value.log
     val client = (ebClient in awseb).value
     val req = new RetrieveEnvironmentInfoRequest().withInfoType(EnvironmentInfoType.Tail)
+    val envMap = (ebEnvMap in awseb).value
 
-    args foreach { envName =>
+    args foreach { arg =>
+      val envName = envMap.get(arg).map(_.envName).getOrElse(arg)
       log.info(s"Retrieving information for environment $envName")
       client.retrieveEnvironmentInfo(req.withEnvironmentName(envName)).getEnvironmentInfo.asScala foreach { envInfo =>
         log.info(s"""
@@ -429,15 +440,18 @@ object AWSEBPlugin extends sbt.AutoPlugin {
   private def swapEnvironmentCNAMEsTask = Def.inputTask[Unit] {
     val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
     val log = streams.value.log
+    val envMap = (ebEnvMap in awseb).value
 
     if (args.length != 2) {
       log.error(s"swapEnvironmentCNAMEs requires two environment names")
     } else {
-      log.info(s"Requesting a swap of the CNAME from environments ${args(0)} to ${args(1)}")
+      val envName1 = envMap.get(args(0)).map(_.envName).getOrElse(args(0))
+      val envName2 = envMap.get(args(1)).map(_.envName).getOrElse(args(1))
+      log.info(s"Requesting a swap of the CNAME from environments ${envName1} to ${envName2}")
       (ebClient in awseb).value.swapEnvironmentCNAMEs(
           new SwapEnvironmentCNAMEsRequest()
-            .withSourceEnvironmentName(args(0))
-            .withDestinationEnvironmentName(args(1))
+            .withSourceEnvironmentName(envName1)
+            .withDestinationEnvironmentName(envName2)
         )
     }
   }
@@ -448,8 +462,10 @@ object AWSEBPlugin extends sbt.AutoPlugin {
     val log = streams.value.log
     val client = (ebClient in awseb).value
     val req = new TerminateEnvironmentRequest().withTerminateResources(true)
+    val envMap = (ebEnvMap in awseb).value
 
-    args foreach { envName =>
+    args foreach { arg =>
+      val envName = envMap.get(arg).map(_.envName).getOrElse(arg)
       log.info(s"Requesting termination of environment $envName")
       val res = client.terminateEnvironment(req.withEnvironmentName(envName))
       log.info(s"""
