@@ -85,6 +85,8 @@ object AWSEBPlugin extends sbt.AutoPlugin {
 
   val terminateEnvironment = Def.inputKey[Unit]("Terminate the specified environments")
 
+  val updateApplication = Def.taskKey[Unit]("Update the application description")
+
   val uploadAppBundle = Def.taskKey[S3Location]("Upload the application bundle to S3")
 
 
@@ -495,6 +497,20 @@ object AWSEBPlugin extends sbt.AutoPlugin {
   }
 
 
+  private def updateApplicationTask = Def.task[Unit] {
+    val client = (ebClient in awseb).value
+    val applicationName = (ebAppName in awseb).value
+
+    val app = client.updateApplication(
+                new UpdateApplicationRequest(applicationName)
+                  // empty string will zero out description on Beanstalk
+                  .withDescription((ebAppDescription in awseb).value.getOrElse(""))
+              ).getApplication()
+
+    streams.value.log.info(applicationDescriptionToString(app))
+  }
+
+
   private def uploadAppBundleTask = Def.task[S3Location] {
     val log = streams.value.log
     val client = (s3Client in awseb).value
@@ -543,6 +559,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
       retrieveEnvironmentInfo in awseb <<= retrieveEnvironmentInfoTask,
       swapEnvironmentCNAMEs in awseb <<= swapEnvironmentCNAMEsTask,
       terminateEnvironment in awseb <<= terminateEnvironmentTask,
+      updateApplication in awseb <<= updateApplicationTask,
       uploadAppBundle in awseb <<= uploadAppBundleTask
     )
 }
