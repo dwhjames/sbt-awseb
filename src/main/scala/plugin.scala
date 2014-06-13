@@ -101,7 +101,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
 
   val uploadAppBundle = Def.taskKey[S3Location]("Upload the application bundle to S3")
 
-  val updateEnvironmentVersion = Def.inputKey[Unit]("Update the specified environment to the specified version")
+  val updateEnvironmentVersion = Def.inputKey[String]("Update the specified environment to the specified version, returning the version label")
 
 
   val awsCredentialsProviderSetting = Def.setting[AWSCredentialsProvider] {
@@ -241,7 +241,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
 
 
   private def createEnvironmentTask = Def.inputTaskDyn[String] {
-    val (alias, optLabel) = CustomParsers.EnvironmentAliasAndOptionalVersionLabel.parsed // Def.spaceDelimited("<environment alias> [<version label>]").parsed
+    val (alias, optLabel) = CustomParsers.EnvironmentAliasAndOptionalVersionLabel.parsed
     val log = streams.value.log
     val envMap = (ebEnvMap in awseb).value
 
@@ -256,7 +256,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
 
       val versionLabelTask = optLabel match {
         case None =>
-          (createApplicationVersion in awseb).toTask(" \"Empty description\"")
+          (createApplicationVersion in awseb).toTask(" \"Initial Version\"")
         case Some(label) =>
           Def.task[String] { label }
       }
@@ -670,40 +670,55 @@ object AWSEBPlugin extends sbt.AutoPlugin {
   }
 
 
-  private def updateEnvironmentVersionTask = Def.inputTask[Unit] {
-    val (alias, versionLabel) = CustomParsers.EnvironmentAliasAndVersionLabel.parsed
+  private def updateEnvironmentVersionTask = Def.inputTaskDyn[String] {
+    val (alias, optLabel) = CustomParsers.EnvironmentAliasAndOptionalVersionLabel.parsed
     val log = streams.value.log
     val envMap = (ebEnvMap in awseb).value
 
     envMap.get(alias) match {
       case None =>
-        log.error(s"Environment alias '${alias}' was not found in the environment map")
+        val msg = s"Environment alias '${alias}' was not found in the environment map"
+        log.error(msg)
+        throw new IllegalArgumentException(msg)
       case Some(EBEnvironment(envName, _, _)) =>
         val client = (ebClient in awseb).value
 
-        log.info(s"Updatings environment $envName to version label $versionLabel")
-        val env = client.updateEnvironment(
-          new UpdateEnvironmentRequest()
-            .withEnvironmentName(envName)
-            .withVersionLabel(versionLabel))
+        val versionLabelTask = optLabel match {
+          case None =>
+            (createApplicationVersion in awseb).toTask(" \"Auto created by sbt-awseb\"")
+          case Some(label) =>
+            Def.task[String] { label }
+        }
 
-        log.info(s"""
-        | Application name: ${env.getApplicationName}
-        | CNAME: ${env.getCNAME}
-        | Date created: ${env.getDateCreated}
-        | Date updated: ${env.getDateUpdated}
-        | Description: ${env.getDescription}
-        | Endpoint URL: ${env.getEndpointURL}
-        | Environment Id: ${env.getEnvironmentId}
-        | Environment name: ${env.getEnvironmentName}
-        | Health: ${env.getHealth}
-        | Solution stack name: ${env.getSolutionStackName}
-        | Status: ${env.getStatus}
-        | Template name: ${env.getTemplateName}
-        | Tier: ${env.getTier}
-        | Version label: ${env.getVersionLabel}
-        | ------
-        |""".stripMargin)
+        Def.task[String] {
+          val versionLabel = versionLabelTask.value
+
+          log.info(s"Updating environment $envName to version label $versionLabel")
+          val env = client.updateEnvironment(
+            new UpdateEnvironmentRequest()
+              .withEnvironmentName(envName)
+              .withVersionLabel(versionLabel))
+
+          log.info(s"""
+          | Application name: ${env.getApplicationName}
+          | CNAME: ${env.getCNAME}
+          | Date created: ${env.getDateCreated}
+          | Date updated: ${env.getDateUpdated}
+          | Description: ${env.getDescription}
+          | Endpoint URL: ${env.getEndpointURL}
+          | Environment Id: ${env.getEnvironmentId}
+          | Environment name: ${env.getEnvironmentName}
+          | Health: ${env.getHealth}
+          | Solution stack name: ${env.getSolutionStackName}
+          | Status: ${env.getStatus}
+          | Template name: ${env.getTemplateName}
+          | Tier: ${env.getTier}
+          | Version label: ${env.getVersionLabel}
+          | ------
+          |""".stripMargin)
+
+          versionLabel
+        }
     }
   }
 
