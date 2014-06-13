@@ -3,9 +3,9 @@
 An sbt plugin for interacting with AWS Elastic Beanstalk
 
 
-## Usage
+## Getting Started
 
-Please refer to the [manual](doc/MANUAL.md)
+Please refer to the [Getting Started](doc/MANUAL.md#getting-started) section of the [manual](doc/MANUAL.md).
 
 
 ## License
