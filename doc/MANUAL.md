@@ -1,5 +1,17 @@
 # sbt-awseb Manual
 
+#### Table of Contents
+
+- [Requirements](MANUAL.md#requirements)
+- [Getting Started](MANUAL.md#gettings-started)
+- [Configure AWS Credentials](MANUAL.md#configure-aws-credentials)
+- [Settings](MANUAL.md#settings)
+- [Tasks](MANUAL.md#tasks)
+- [AWS Beanstalk Tasks](MANUAL.md#aws-beanstalk-tasks)
+
+---
+
+
 ## Requirements
 
 - sbt 0.13.5 (sbt-awseb is an `AutoPlugin`)
