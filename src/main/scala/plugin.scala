@@ -71,6 +71,10 @@ object AWSEBPlugin extends sbt.AutoPlugin {
 
   val describeApplicationVersions = Def.taskKey[Unit]("Describe the version of the application")
 
+  val describeConfigurationOptions = Def.inputKey[Unit]("Describe the configuration options for the specified environment")
+
+  val describeConfigurationSettings = Def.inputKey[Unit]("Describe the configuration options for the specified environment")
+
   val describeEnvironments = Def.taskKey[Unit]("Describe the environments")
 
   val describeEnvironmentResources = Def.inputKey[Unit]("Describe the resources of the specified environment")
@@ -358,6 +362,80 @@ object AWSEBPlugin extends sbt.AutoPlugin {
 
     versions foreach { ver =>
       log.info(applicationVersionDescriptionToString(ver))
+    }
+  }
+
+
+  private def describeConfigurationOptionsTask = Def.inputTask[Unit] {
+    val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
+
+    if (args.length > 0) {
+      val arg = args(0)
+      val envMap = (ebEnvMap in awseb).value
+      val envName = envMap.get(arg).map(_.envName).getOrElse(arg)
+
+      (ebClient in awseb).value.describeConfigurationOptions(
+        new DescribeConfigurationOptionsRequest()
+          .withEnvironmentName(envName)).getOptions.asScala foreach { confOpt =>
+        val builder = collection.mutable.StringBuilder.newBuilder
+        def local(label: String, obj: AnyRef): Unit = {
+          if (obj ne null) {
+            builder ++= label ++= ": " ++= obj.toString += '\n'
+          }
+        }
+        builder += '\n'
+        local("Change severity", confOpt.getChangeSeverity)
+        local("Default value", confOpt.getDefaultValue)
+        local("Max length", confOpt.getMaxLength)
+        local("Max value", confOpt.getMaxValue)
+        local("Min value", confOpt.getMinValue)
+        local("Name", confOpt.getName)
+        local("Namespace", confOpt.getNamespace)
+        local("Regex", confOpt.getRegex)
+        local("User defined", confOpt.getUserDefined)
+        local("Value options", Option(confOpt.getValueOptions).map(_.asScala.mkString(", ")).orNull)
+        local("Value type", confOpt.getValueType)
+        builder ++= "------\n"
+
+        streams.value.log.info(builder.result())
+      }
+    }
+  }
+
+  private def describeConfigurationSettingsTask = Def.inputTask[Unit] {
+    val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
+
+    if (args.length > 0) {
+      val arg = args(0)
+      val envMap = (ebEnvMap in awseb).value
+      val envName = envMap.get(arg).map(_.envName).getOrElse(arg)
+      val log = streams.value.log
+
+      (ebClient in awseb).value.describeConfigurationSettings(
+        new DescribeConfigurationSettingsRequest()
+          .withApplicationName((ebAppName in awseb).value)
+          .withEnvironmentName(envName)
+      ).getConfigurationSettings.asScala foreach { confSettings =>
+
+        log.info(s"""
+        | Application name: ${confSettings.getApplicationName}
+        | Date created: ${confSettings.getDateCreated}
+        | Date updated: ${confSettings.getDateUpdated}
+        | Deployment status: ${confSettings.getDeploymentStatus}
+        | Description: ${confSettings.getDescription}
+        | Environment name: ${confSettings.getEnvironmentName}
+        | Solution stack name: ${confSettings.getSolutionStackName}
+        | Template name: ${confSettings.getTemplateName}
+        |""".stripMargin)
+
+        confSettings.getOptionSettings.asScala foreach { optSetting =>
+          log.info(s"""
+          | Namespace: ${optSetting.getNamespace}
+          | Option name: ${optSetting.getOptionName}
+          | Value: ${optSetting.getValue}
+          |""".stripMargin)
+        }
+      }
     }
   }
 
@@ -702,6 +780,8 @@ object AWSEBPlugin extends sbt.AutoPlugin {
       deleteApplicationVersion in awseb <<= deleteApplicationVersionTask,
       describeApplication in awseb <<= describeApplicationTask,
       describeApplicationVersions in awseb <<= describeApplicationVersionsTask,
+      describeConfigurationOptions in awseb <<= describeConfigurationOptionsTask,
+      describeConfigurationSettings in awseb <<= describeConfigurationSettingsTask,
       describeEnvironments in awseb <<= describeEnvironmentsTask,
       describeEnvironmentResources in awseb <<= describeEnvironmentResourcesTask,
       describeEvents in awseb <<= describeEventsTask,
