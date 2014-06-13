@@ -57,7 +57,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
 
   val createApplication = Def.taskKey[Unit]("Create an Elastic Beanstalk application")
 
-  val createApplicationVersion = Def.inputKey[String]("Create an Elastic Beanstalk application, returning the version label")
+  val createApplicationVersion = Def.inputKey[String]("Create an Elastic Beanstalk application version, returning the version label")
 
   val createEnvironment = Def.inputKey[String]("Create an Elastic Beanstalk environment")
 
