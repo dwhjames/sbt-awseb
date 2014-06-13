@@ -1,5 +1,47 @@
 # sbt-awseb Manual
 
+## Requirements
+
+- sbt 0.13.5 (sbt-awseb is an `AutoPlugin`)
+
+## Getting Started
+
+- [Configure AWS Credentials](MANUAL.md#configure-aws-credentials)
+- Add the plugin to your `plugins.sbt`
+```scala
+addSbtPlugin("com.github.dwhjames" % "sbt-awseb" % …)
+```
+- Enable the plugin
+```scala
+lazy val root = (project in file (".")).enablePlugins(AWSEBPlugin)
+```
+- Define an environment map
+```scala
+ebEnvMap in awseb := Map(
+                      "dev" ->
+                      EBEnvironment(
+                        envName = "my-app-dev",
+                        cname = "my-app-dev",
+                        solutionStackName = "64bit Amazon Linux 2014.03 v1.0.5 running Docker 0.9.0"),
+                      "prod" ->
+                      EBEnvironment(
+                        envName = "my-app-prod",
+                        cname = "my-app",
+                        solutionStackName = "64bit Amazon Linux 2014.03 v1.0.5 running Docker 0.9.0"))
+```
+- Define how your application should be bundled: [Generate Application Bundle](MANUAL.md#generate-application-bundle)
+- Override the app name if it should be different to the sbt module name.
+```scala
+ebAppName in awseb := "my-app"
+```
+- Optionally, provide an application description.
+```scala
+ebAppDescription in awseb := Some("A service for things")
+```
+
+---
+
+
 ## Configure AWS Credentials
 
 sbt-awseb uses the Java SDK and the
