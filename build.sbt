@@ -1,4 +1,4 @@
-organization := "dwhjames"
+organization := "com.github.dwhjames"
 
 name := "sbt-awseb"
 
