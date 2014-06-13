@@ -72,6 +72,20 @@ If you wish to use an alternative mechanism for providing credentials, you shoul
 
 The `awseb::ebAppBundle` task key must be defined with a task that produces a `java.io.File` pointing to the application bundle.
 
+The following is a example template for how to implement the `awseb::ebAppBundle` task:
+
+```scala
+ebAppBundle in awseb <<= Def.task[File] {
+  val zipfile = taskTemporaryDirectory.value / "bundle.zip"
+  …
+  IO.zip(
+    …,
+    zipfile
+  )
+  zipfile
+}
+```
+
 ---
 
 
