@@ -97,6 +97,8 @@ object AWSEBPlugin extends sbt.AutoPlugin {
 
   val uploadAppBundle = Def.taskKey[S3Location]("Upload the application bundle to S3")
 
+  val updateEnvironmentVersion = Def.inputKey[Unit]("Update the specified environment to the specified version")
+
 
   val awsCredentialsProviderSetting = Def.setting[AWSCredentialsProvider] {
     awsCredentialsProfileName.value match {
@@ -632,6 +634,45 @@ object AWSEBPlugin extends sbt.AutoPlugin {
   }
 
 
+  private def updateEnvironmentVersionTask = Def.inputTask[Unit] {
+    val args: Seq[String] = Def.spaceDelimited("<environment name and version label>").parsed
+    val log = streams.value.log
+    val envMap = (ebEnvMap in awseb).value
+
+    if (args.length != 2 || !envMap.contains(args(0))) {
+      log.error("updateEnvironmentVersion requires an environment name and version label")
+    } else {
+      val envName = envMap(args(0)).envName
+      val versionLabel = args(1)
+      val client = (ebClient in awseb).value
+
+      log.info(s"Updatings environment $envName to version label $versionLabel")
+      val env = client.updateEnvironment(
+        new UpdateEnvironmentRequest()
+          .withEnvironmentName(envName)
+          .withVersionLabel(versionLabel))
+
+      log.info(s"""
+      | Application name: ${env.getApplicationName}
+      | CNAME: ${env.getCNAME}
+      | Date created: ${env.getDateCreated}
+      | Date updated: ${env.getDateUpdated}
+      | Description: ${env.getDescription}
+      | Endpoint URL: ${env.getEndpointURL}
+      | Environment Id: ${env.getEnvironmentId}
+      | Environment name: ${env.getEnvironmentName}
+      | Health: ${env.getHealth}
+      | Solution stack name: ${env.getSolutionStackName}
+      | Status: ${env.getStatus}
+      | Template name: ${env.getTemplateName}
+      | Tier: ${env.getTier}
+      | Version label: ${env.getVersionLabel}
+      | ------
+      |""".stripMargin)
+    }
+  }
+
+
   override lazy val buildSettings =
     Seq(
       awsCredentialsProfileName := None,
@@ -672,6 +713,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
       terminateEnvironment in awseb <<= terminateEnvironmentTask,
       updateApplication in awseb <<= updateApplicationTask,
       updateApplicationVersion in awseb <<= updateApplicationVersionTask,
+      updateEnvironmentVersion in awseb <<= updateEnvironmentVersionTask,
       uploadAppBundle in awseb <<= uploadAppBundleTask
     )
 }
