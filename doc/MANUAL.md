@@ -218,6 +218,7 @@ awseb::createApplication
 
 - [API Reference](http://docs.aws.amazon.com/elasticbeanstalk/latest/api/API_CreateApplication.html)
 - <a href="http://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/elasticbeanstalk/AWSElasticBeanstalk.html#createApplication(com.amazonaws.services.elasticbeanstalk.model.CreateApplicationRequest)">Java SDK</a>
+
 ---
 
 
@@ -652,8 +653,8 @@ awseb::uploadAppBundle
 - [Settings](MANUAL.md#settings)
 - [Generate Application Bundle](MANUAL.md#generate-application-bundle)
 
-
 ---
+
 
 ### Update Environment Version
 
