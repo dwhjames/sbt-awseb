@@ -1,5 +1,51 @@
 # sbt-awseb Manual
 
+## Configure AWS Credentials
+
+sbt-awseb uses the Java SDK and the
+[ProfileCredentialsProvider](http://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/auth/profile/ProfileCredentialsProvider.html)
+to interact with Elastic Beanstalk. For full details of the configuration of this credentials provider, see
+[ProfilesConfigFile](http://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/auth/profile/ProfilesConfigFile.html).
+
+The behavior is governed by the following setting keys:
+<dl>
+  <dt><tt>awsCredentialsProvider</tt></dt>
+  <dd>The AWS credentials provider to use, defaults to <tt>ProfileCredentialsProvider</tt>.</dd>
+  <dt><tt>awsCredentialsProfileName</tt></dt>
+  <dd>The profile name to configure the profile credentials provider, defaults to None which selects the default profile.</dd>
+</dl>
+
+To use the sbt-awseb plugin out of the box, you will need a `~/.aws/credentials` file:
+
+```
+[default]
+aws_access_key_id=…
+aws_secret_access_key=…
+```
+
+If you wish to use custom profiles, you can extend this file:
+
+```
+[default]
+aws_access_key_id=…
+aws_secret_access_key=…
+
+[my-profile]
+aws_access_key_id=…
+aws_secret_access_key=…
+```
+
+And set the profile name in your sbt build:
+
+```scala
+awsCredentialsProfileName in ThisBuild := Some("my-profile")
+```
+
+If you wish to use an alternative mechanism for providing credentials, you should customize the `awsCredentialsProvider` setting.
+
+---
+
+
 ## Settings
 
 <dl>
@@ -19,14 +65,6 @@
 
 ---
 
-### Advanced Settings
-
-<dl>
-  <dt><tt>awsCredentialsProvider</tt></dt>
-  <dd>The AWS credentials provider to use, defaults to <tt>ProfileCredentialsProvider</tt>.</dd>
-  <dt><tt>awsCredentialsProfileName</tt></dt>
-  <dd>The profile name to configure the profile credentials provider, defaults to None which selects the default profile.</dd>
-</dl>
 
 ## Tasks
 
