@@ -246,7 +246,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
 
 
   private def createEnvironmentTask = Def.inputTaskDyn[String] {
-    val args: Seq[String] = Def.spaceDelimited("<environment alias>").parsed
+    val args: Seq[String] = Def.spaceDelimited("<environment alias> [<version label>]").parsed
     val log = streams.value.log
     val envMap = (ebEnvMap in awseb).value
 
@@ -367,7 +367,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
 
 
   private def describeConfigurationOptionsTask = Def.inputTask[Unit] {
-    val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
+    val args: Seq[String] = Def.spaceDelimited("<environment alias or name>").parsed
 
     if (args.length > 0) {
       val arg = args(0)
@@ -403,7 +403,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
   }
 
   private def describeConfigurationSettingsTask = Def.inputTask[Unit] {
-    val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
+    val args: Seq[String] = Def.spaceDelimited("<environment alias or name>").parsed
 
     if (args.length > 0) {
       val arg = args(0)
@@ -474,7 +474,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
 
 
   private def describeEnvironmentResourcesTask = Def.inputTask[Unit] {
-    val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
+    val args: Seq[String] = Def.spaceDelimited("<environment alias or name>").parsed
     val log = streams.value.log
     val envMap = (ebEnvMap in awseb).value
 
@@ -500,7 +500,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
 
 
   private def describeEventsTask = Def.inputTask[Unit] {
-    val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
+    val args: Seq[String] = Def.spaceDelimited("<environment alias or name>").parsed
     val applicationName = (ebAppName in awseb).value
     val limit = (ebEventLimit in awseb).value
     val log = streams.value.log
@@ -545,7 +545,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
 
 
   private def rebuildEnvironmentTask = Def.inputTask[Unit] {
-    val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
+    val args: Seq[String] = Def.spaceDelimited("<environment alias or name>").parsed
     val log = streams.value.log
     val client = (ebClient in awseb).value
     val envMap = (ebEnvMap in awseb).value
@@ -559,7 +559,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
 
 
   private def requestEnvironmentInfoTask = Def.inputTask[Unit] {
-    val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
+    val args: Seq[String] = Def.spaceDelimited("<environment alias or name>").parsed
     val log = streams.value.log
     val client = (ebClient in awseb).value
     val req = new RequestEnvironmentInfoRequest().withInfoType(EnvironmentInfoType.Tail)
@@ -574,7 +574,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
 
 
   private def restartAppServerTask = Def.inputTask[Unit] {
-    val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
+    val args: Seq[String] = Def.spaceDelimited("<environment alias or name>").parsed
     val log = streams.value.log
     val client = (ebClient in awseb).value
     val envMap = (ebEnvMap in awseb).value
@@ -588,7 +588,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
 
 
   private def retrieveEnvironmentInfoTask = Def.inputTask[Unit] {
-    val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
+    val args: Seq[String] = Def.spaceDelimited("<environment alias or name>").parsed
     val log = streams.value.log
     val client = (ebClient in awseb).value
     val req = new RetrieveEnvironmentInfoRequest().withInfoType(EnvironmentInfoType.Tail)
@@ -611,7 +611,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
 
 
   private def swapEnvironmentCNAMEsTask = Def.inputTask[Unit] {
-    val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
+    val args: Seq[String] = Def.spaceDelimited("<environment alias or name>").parsed
     val log = streams.value.log
     val envMap = (ebEnvMap in awseb).value
 
@@ -631,7 +631,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
 
 
   private def terminateEnvironmentTask = Def.inputTask[Unit] {
-    val args: Seq[String] = Def.spaceDelimited("<environment name>").parsed
+    val args: Seq[String] = Def.spaceDelimited("<environment alias or name>").parsed
     val log = streams.value.log
     val client = (ebClient in awseb).value
     val req = new TerminateEnvironmentRequest().withTerminateResources(true)
@@ -677,7 +677,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
 
 
   private def updateApplicationVersionTask = Def.inputTask[Unit] {
-    val args: Seq[String] = Def.spaceDelimited("<version label and description>").parsed
+    val args: Seq[String] = Def.spaceDelimited("<version label> <version description>").parsed
     val log = streams.value.log
 
     if (args.length == 0) {
@@ -713,7 +713,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
 
 
   private def updateEnvironmentVersionTask = Def.inputTask[Unit] {
-    val args: Seq[String] = Def.spaceDelimited("<environment name and version label>").parsed
+    val args: Seq[String] = Def.spaceDelimited("<environment alias> <version label>").parsed
     val log = streams.value.log
     val envMap = (ebEnvMap in awseb).value
 

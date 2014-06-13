@@ -134,8 +134,13 @@ This task returns the version label of the application version created.
 Create an Elastic Beanstalk environment.
 
 ```
-awseb::createEnvironment <environment alias>
+awseb::createEnvironment <environment alias> [<version label>]
 ```
+
+This task requires one of the environment aliases defined in the environment map.
+Optionally it will also take a version label to use as the application version to
+deploy the environment with. If a version label is not supplied, the
+`awseb::createApplicationVersion` task is run to create a new application version.
 
 #### Note
 
@@ -174,6 +179,10 @@ Delete the Elastic Beanstalk application.
 awseb::deleteApplication
 ```
 
+#### Note
+
+You cannot delete an application that has a running environment.
+
 #### See
 
 - [API Reference](http://docs.aws.amazon.com/elasticbeanstalk/latest/api/API_DeleteApplication.html)
@@ -183,6 +192,17 @@ awseb::deleteApplication
 
 
 ### Delete Application Version
+
+Delete the specified application version.
+
+```
+awseb::deleteApplicationVersion <version label>
+```
+
+#### Note
+
+- You cannot delete an application version that is associated with a running environment.
+- The application bundle will also be removed from the S3 bucket.
 
 #### See
 
@@ -194,6 +214,14 @@ awseb::deleteApplication
 
 ### Describe Application
 
+Describe the application
+
+```
+awseb::describeApplication
+```
+
+This will display metadata about the application.
+
 #### See
 
 - [API Reference](http://docs.aws.amazon.com/elasticbeanstalk/latest/api/API_DescribeApplications.html)
@@ -203,6 +231,14 @@ awseb::deleteApplication
 
 
 ### Describe Application Versions
+
+Describe the application versions.
+
+```
+awseb::describeApplicationVersions
+```
+
+This will display metadata about every version associated with the application.
 
 #### See
 
@@ -214,6 +250,12 @@ awseb::deleteApplication
 
 ### Describe Configuration Options
 
+Describe the configuration options that are available for the specified environment.
+
+```
+awseb::describeConfigurationOptions <environment alias or name>
+```
+
 #### See
 
 - [API Reference](http://docs.aws.amazon.com/elasticbeanstalk/latest/api/API_DescribeConfigurationOptions.html)
@@ -223,6 +265,12 @@ awseb::deleteApplication
 
 
 ### Describe Configuration Settings
+
+Describe the values of the configuration options that are set for the specified environment.
+
+```
+awseb::describeConfigurationSettings <environment alias or name>
+```
 
 #### See
 
@@ -234,6 +282,14 @@ awseb::deleteApplication
 
 ### Describe Environments
 
+Describe all the environments that are associated with the application.
+
+```
+awseb::describeEnvironments
+```
+
+This will display metadata and operational information about each environment.
+
 #### See
 
 - [API Reference](http://docs.aws.amazon.com/elasticbeanstalk/latest/api/API_DescribeEnvironments.html)
@@ -243,6 +299,16 @@ awseb::deleteApplication
 
 
 ### Describe Environment Resources
+
+Describe all the AWS resources that are used by the specified environment.
+
+```
+awseb::describeEnvironmentResources <environment alias or name>
+```
+
+This will display the identities of all Elastic Beanstalk related AWS resources that are used by the environment.
+This includes autoscaling groups, instances, etc. (The Cloud Formation stack may include additional resources.)
+
 
 #### See
 
@@ -254,6 +320,18 @@ awseb::deleteApplication
 
 ### Describe Events
 
+Describe the recent event stream of the specified environment.
+
+```
+awseb::describeEvents <environment alias or name>
+```
+
+This will display each event and its metadata in reverse chronological order.
+
+#### Note
+
+The number of events returned is controlled by the setting `awseb::ebEventLimit`.
+
 #### See
 
 - [API Reference](http://docs.aws.amazon.com/elasticbeanstalk/latest/api/API_DescribeEvents.html)
@@ -263,6 +341,12 @@ awseb::deleteApplication
 
 
 ### List Available Solution Stacks
+
+List the names of all the available solution stacks.
+
+```
+awseb::listAvailableSolutionStacks
+```
 
 #### See
 
@@ -274,6 +358,17 @@ awseb::deleteApplication
 
 ### Rebuild Environment
 
+Request that the specified environment be rebuilt.
+
+```
+awseb::rebuildEnvironment <environment alias or name>
+```
+
+#### Note
+
+This task will complete once the request has been made and the
+environment will rebuild asynchronously in the background.
+
 #### See
 
 - [API Reference](http://docs.aws.amazon.com/elasticbeanstalk/latest/api/API_RebuildEnvironment.html)
@@ -284,8 +379,23 @@ awseb::deleteApplication
 
 ### Request Environment Info
 
+Request the tail of the instance logs for the specified environment.
+
+```
+awseb::requestEnvironmentInfo <environment alias or name>
+```
+
+At a later time the `awseb::retrieveEnvironmentInfo` task can be invoked
+to view the logs.
+
+#### Note
+
+This task will complete once the request has been made and the
+log tails will be collected asynchronously in the background.
+
 #### See
 
+- [Retrieve Environment Info](MANUAL.md#retrieve-environment-info)
 - [API Reference](http://docs.aws.amazon.com/elasticbeanstalk/latest/api/API_RequestEnvironmentInfo.html)
 - <a href="http://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/elasticbeanstalk/AWSElasticBeanstalk.html#rebuildEnvironment(com.amazonaws.services.elasticbeanstalk.model.RebuildEnvironmentRequest)">Java SDK</a>
 
@@ -293,6 +403,17 @@ awseb::deleteApplication
 
 
 ### Restart App Server
+
+Request that the app servers in the specified environment be restarted.
+
+```
+awseb::restartAppServer <environment alias or name>
+```
+
+#### Note
+
+This task will complete once the request has been made and the
+servers will restart in the background.
 
 #### See
 
@@ -304,6 +425,14 @@ awseb::deleteApplication
 
 ### Retrieve Environment Info
 
+Retrieve the tail of the instance logs for the specified environment.
+
+```
+awseb::requestEnvironmentInfo <environment alias or name>
+```
+
+The `awseb::retrieveEnvironmentInfo` task should have been invoked prior to this task.
+
 #### See
 
 - [API Reference](http://docs.aws.amazon.com/elasticbeanstalk/latest/api/API_RetrieveEnvironmentInfo.html)
@@ -313,6 +442,12 @@ awseb::deleteApplication
 
 
 ### Swap Environment CNAMEs
+
+Swap the CNAMEs of two environments.
+
+```
+awseb::swapEnvironmentCNAMEsTask <environment alias or name> <environment alias or name>
+```
 
 #### See
 
@@ -324,6 +459,17 @@ awseb::deleteApplication
 
 ### Terminate Environment
 
+Request that the specified environment be terminated.
+
+```
+awseb::terminateEnvironment <environment alias or name>
+```
+
+#### Note
+
+This task will complete once the request has been made and the
+environment will terminate asynchronously in the background.
+
 #### See
 
 - [API Reference](http://docs.aws.amazon.com/elasticbeanstalk/latest/api/API_TerminateEnvironment.html)
@@ -333,6 +479,12 @@ awseb::deleteApplication
 
 
 ### Update Application
+
+Update the application to use the description defined by setting key `awseb::ebAppDescription`.
+
+```
+awseb::updateApplication
+```
 
 #### See
 
@@ -344,6 +496,12 @@ awseb::deleteApplication
 
 ### Update Application Version
 
+Update the specified application version to use the specified description.
+
+```
+awseb::updateApplicationVersion <version label> <version description>
+```
+
 #### See
 
 - [API Reference](http://docs.aws.amazon.com/elasticbeanstalk/latest/api/API_UpdateApplicationVersion.html)
@@ -352,12 +510,28 @@ awseb::deleteApplication
 ---
 
 
-### Upload App Bundle
+### Upload Application Bundle
 
+Take the application bundle file that was generated locally and upload it to S3.
+
+```
+awseb::uploadAppBundle
+```
+
+#### Note
+
+- The bucket where the bundle will be stored is defined by setting key `awseb::s3AppBucketName`.
+- The bundle file is generated by the task `awseb::ebAppBundle`
 
 ---
 
 ### Update Environment Version
+
+Update the specified environment to use the specified application version.
+
+```
+awseb::updateEnvironmentVersion <environment alias> <version label>
+```
 
 #### See
 
