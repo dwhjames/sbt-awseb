@@ -16,7 +16,7 @@ licenses := Seq("MIT" -> url("http://opensource.org/licenses/MIT"))
 homepage := Some(url("https://github/dwhjames/sbt-awseb"))
 
 
-libraryDependencies += "com.amazonaws" % "aws-java-sdk" % "1.7.12"
+libraryDependencies += "com.amazonaws" % "aws-java-sdk" % "1.7.13"
 
 
 publishMavenStyle := false
