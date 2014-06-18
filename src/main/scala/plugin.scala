@@ -657,16 +657,23 @@ object AWSEBPlugin extends sbt.AutoPlugin {
   }
 
 
-  private def uploadAppBundleTask = Def.task[S3Location] {
+  private def uploadAppBundleTask = Def.taskDyn[S3Location] {
     val log = streams.value.log
     val client = (s3Client in awseb).value
     val bucketName = (s3AppBucketName in awseb).value
     val file = (ebAppBundle in awseb).value
 
-    log.info(s"Uploading application bundle from $file to bucket $bucketName")
-    val location = S3FileUploader.upload(client, bucketName, file)
-    log.info(s"$location")
-    location
+    val checkBucketTask =
+      if (client.doesBucketExist(bucketName)) Def.task[Unit] { }
+      else createAppBucketTask
+
+    Def.task[S3Location] {
+      checkBucketTask.value
+      log.info(s"Uploading application bundle from $file to bucket $bucketName")
+      val location = S3FileUploader.upload(client, bucketName, file)
+      log.info(s"$location")
+      location
+    }
   }
 
 
