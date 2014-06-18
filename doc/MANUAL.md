@@ -202,11 +202,14 @@ awseb::createAppBucket
 #### Note
 
 - The bucket name is set by the key `awseb::s3AppBucketName`.
+- The bucket region is set by the key `awseb::ebRegion`.
 - The bucket must exist before any application versions can be created.
 
 #### See
 
 - [Settings](MANUAL.md#settings)
+- [API Reference](http://docs.aws.amazon.com/AmazonS3/latest/API/RESTBucketPUT.html)
+- <a href="http://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/AmazonS3.html#createBucket(java.lang.String)">Java SDK</a>
 
 ---
 
@@ -239,11 +242,14 @@ This task returns the version label of the application version created.
 
 #### Note
 
+The `awseb::createAppBucket` task should have already been run to ensure
+that a bucket with name `awseb::s3AppBucketName` exists.
 The `awseb::uploadAppBundle` task will be run to first upload a new application
 bundle.
 
 #### See
 
+- [Create Application Bucket](MANUAL.md#create-application-bucket)
 - [Upload Application Bundle](MANUAL.md#upload-application-bundle)
 - [API Reference](http://docs.aws.amazon.com/elasticbeanstalk/latest/api/API_CreateApplicationVersion.html)
 - <a href="http://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/elasticbeanstalk/AWSElasticBeanstalk.html#createApplicationVersion(com.amazonaws.services.elasticbeanstalk.model.CreateApplicationVersionRequest)">Java SDK</a>
@@ -295,6 +301,8 @@ The bucket name is set by the key `awseb::s3AppBucketName`.
 #### See
 
 - [Settings](MANUAL.md#settings)
+- [API Reference](http://docs.aws.amazon.com/AmazonS3/latest/API/RESTBucketDELETE.html)
+- <a href="http://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/AmazonS3.html#deleteBucket(java.lang.String)">Java SDK</a>
 
 ---
 
