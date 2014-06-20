@@ -140,17 +140,18 @@ object AWSEBPlugin extends sbt.AutoPlugin {
     val log = streams.value.log
     val client = (ebClient in awseb).value
 
-    val applicationVersions = {
-      val apps = client.describeApplications(
-          new DescribeApplicationsRequest()
-            .withApplicationNames(applicationName)
-        ).getApplications.asScala
-      if (apps.isEmpty) {
-        val msg = s"No application called ${applicationName} was found!"
-        log.error(msg)
-        throw new IllegalStateException(msg)
-      } else apps.head.getVersions.asScala.toSet
-    }
+    val applicationVersions =
+      client.describeApplications(
+        new DescribeApplicationsRequest().withApplicationNames(applicationName)
+      ).getApplications.asScala.headOption match {
+        case None =>
+          val msg = s"No application called ${applicationName} was found!"
+          log.error(msg)
+          throw new IllegalStateException(msg)
+        case Some(app) =>
+          app.getVersions.asScala.toSet
+      }
+
     log.debug(s"Versions for application $applicationName: $applicationVersions")
 
     val deployedApplicationVersions = client.describeEnvironments(
@@ -245,51 +246,51 @@ object AWSEBPlugin extends sbt.AutoPlugin {
     val log = streams.value.log
     val envMap = (ebEnvMap in awseb).value
 
-    if (!envMap.contains(alias)) {
-      val msg = "createEnvironmentTask requires an environment alias defined in ebEnvMap"
-      log.error(msg)
-      throw new IllegalArgumentException(msg)
-    } else {
-      val envDef = envMap(alias)
-      val applicationName = (ebAppName in awseb).value
-      val client = (ebClient in awseb).value
+    envMap.get(alias) match {
+      case None =>
+        val msg = "createEnvironmentTask requires an environment alias defined in ebEnvMap"
+        log.error(msg)
+        throw new IllegalArgumentException(msg)
 
-      val versionLabelTask = optLabel match {
-        case None =>
-          (createApplicationVersion in awseb).toTask(" \"Initial Version\"")
-        case Some(label) =>
-          Def.task[String] { label }
-      }
+      case Some(EBEnvironment(envName, cname, solutionStackName)) =>
+        val versionLabelTask = optLabel match {
+          case None =>
+            (createApplicationVersion in awseb).toTask(" \"Initial Version\"")
+          case Some(label) =>
+            Def.task[String] { label }
+        }
 
-      Def.task[String] {
-        val versionLabel = versionLabelTask.value
+        Def.task[String] {
+          val applicationName = (ebAppName in awseb).value
+          val client = (ebClient in awseb).value
+          val versionLabel = versionLabelTask.value
 
-        val env = client.createEnvironment(
-          new CreateEnvironmentRequest(applicationName, envDef.envName)
-            .withCNAMEPrefix(envDef.cname)
-            .withSolutionStackName(envDef.solutionStackName)
-            .withVersionLabel(versionLabel))
+          val env = client.createEnvironment(
+            new CreateEnvironmentRequest(applicationName, envName)
+              .withCNAMEPrefix(cname)
+              .withSolutionStackName(solutionStackName)
+              .withVersionLabel(versionLabel))
 
-        log.info(s"""
-        | Application name: ${env.getApplicationName}
-        | CNAME: ${env.getCNAME}
-        | Date created: ${env.getDateCreated}
-        | Date updated: ${env.getDateUpdated}
-        | Description: ${env.getDescription}
-        | Endpoint URL: ${env.getEndpointURL}
-        | Environment Id: ${env.getEnvironmentId}
-        | Environment name: ${env.getEnvironmentName}
-        | Health: ${env.getHealth}
-        | Solution stack name: ${env.getSolutionStackName}
-        | Status: ${env.getStatus}
-        | Template name: ${env.getTemplateName}
-        | Tier: ${env.getTier}
-        | Version label: ${env.getVersionLabel}
-        | ------
-        |""".stripMargin)
+          log.info(s"""
+          | Application name: ${env.getApplicationName}
+          | CNAME: ${env.getCNAME}
+          | Date created: ${env.getDateCreated}
+          | Date updated: ${env.getDateUpdated}
+          | Description: ${env.getDescription}
+          | Endpoint URL: ${env.getEndpointURL}
+          | Environment Id: ${env.getEnvironmentId}
+          | Environment name: ${env.getEnvironmentName}
+          | Health: ${env.getHealth}
+          | Solution stack name: ${env.getSolutionStackName}
+          | Status: ${env.getStatus}
+          | Template name: ${env.getTemplateName}
+          | Tier: ${env.getTier}
+          | Version label: ${env.getVersionLabel}
+          | ------
+          |""".stripMargin)
 
-        versionLabel
-      }
+          versionLabel
+        }
     }
   }
 
@@ -326,17 +327,13 @@ object AWSEBPlugin extends sbt.AutoPlugin {
   private def describeApplicationTask = Def.task[Unit] {
     val applicationName = (ebAppName in awseb).value
     val log = streams.value.log
-    val applications = (ebClient in awseb).value.describeApplications(
-        new DescribeApplicationsRequest()
-          .withApplicationNames(applicationName)
-      ).getApplications.asScala
-
-    if (applications.isEmpty) {
-      log.warn(s"No application called ${applicationName} was found!")
-    }
-
-    applications foreach { app =>
-      log.info(applicationDescriptionToString(app))
+    (ebClient in awseb).value.describeApplications(
+      new DescribeApplicationsRequest().withApplicationNames(applicationName)
+    ).getApplications.asScala.headOption match {
+      case None =>
+        log.warn(s"No application called ${applicationName} was found!")
+      case Some(app) =>
+        log.info(applicationDescriptionToString(app))
     }
   }
 
@@ -359,15 +356,20 @@ object AWSEBPlugin extends sbt.AutoPlugin {
   }
 
 
+  private def lookupEnvName(envMap: Map[String, EBEnvironment], alias: String): String =
+    envMap.get(alias).map(_.envName).getOrElse(alias)
+
+
   private def describeConfigurationOptionsTask = Def.inputTask[Unit] {
     val alias = CustomParsers.EnvironmentAliasOrName.parsed
     val envMap = (ebEnvMap in awseb).value
-    val envName = envMap.get(alias).map(_.envName).getOrElse(alias)
+    val envName = lookupEnvName(envMap, alias)
+    val log = streams.value.log
 
     (ebClient in awseb).value.describeConfigurationOptions(
       new DescribeConfigurationOptionsRequest()
         .withEnvironmentName(envName)).getOptions.asScala foreach { confOpt =>
-      val builder = collection.mutable.StringBuilder.newBuilder
+      val builder = StringBuilder.newBuilder
       def local(label: String, obj: AnyRef): Unit = {
         if (obj ne null) {
           builder ++= label ++= ": " ++= obj.toString += '\n'
@@ -387,14 +389,14 @@ object AWSEBPlugin extends sbt.AutoPlugin {
       local("Value type", confOpt.getValueType)
       builder ++= "------\n"
 
-      streams.value.log.info(builder.result())
+      log.info(builder.result())
     }
   }
 
   private def describeConfigurationSettingsTask = Def.inputTask[Unit] {
     val alias = CustomParsers.EnvironmentAliasOrName.parsed
     val envMap = (ebEnvMap in awseb).value
-    val envName = envMap.get(alias).map(_.envName).getOrElse(alias)
+    val envName = lookupEnvName(envMap, alias)
     val log = streams.value.log
 
     (ebClient in awseb).value.describeConfigurationSettings(
@@ -462,7 +464,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
     val alias = CustomParsers.EnvironmentAliasOrName.parsed
     val log = streams.value.log
     val envMap = (ebEnvMap in awseb).value
-    val envName = envMap.get(alias).map(_.envName).getOrElse(alias)
+    val envName = lookupEnvName(envMap, alias)
 
     val resources = (ebClient in awseb).value.describeEnvironmentResources(
         new DescribeEnvironmentResourcesRequest()
@@ -487,7 +489,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
     val applicationName = (ebAppName in awseb).value
     val limit = (ebEventLimit in awseb).value
     val envMap = (ebEnvMap in awseb).value
-    val envName = envMap.get(alias).map(_.envName).getOrElse(alias)
+    val envName = lookupEnvName(envMap, alias)
     val log = streams.value.log
 
     (ebClient in awseb).value.describeEvents(
@@ -529,7 +531,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
     val client = (ebClient in awseb).value
     val envMap = (ebEnvMap in awseb).value
 
-    val envName = envMap.get(alias).map(_.envName).getOrElse(alias)
+    val envName = lookupEnvName(envMap, alias)
     log.info(s"Requesting that environment $envName be rebuilt")
     client.rebuildEnvironment(new RebuildEnvironmentRequest().withEnvironmentName(envName))
   }
@@ -542,7 +544,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
     val req = new RequestEnvironmentInfoRequest().withInfoType(EnvironmentInfoType.Tail)
     val envMap = (ebEnvMap in awseb).value
 
-    val envName = envMap.get(alias).map(_.envName).getOrElse(alias)
+    val envName = lookupEnvName(envMap, alias)
     log.info(s"Requesting information for environment $envName")
     client.requestEnvironmentInfo(req.withEnvironmentName(envName))
   }
@@ -554,7 +556,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
     val client = (ebClient in awseb).value
     val envMap = (ebEnvMap in awseb).value
 
-    val envName = envMap.get(alias).map(_.envName).getOrElse(alias)
+    val envName = lookupEnvName(envMap, alias)
     log.info(s"Requesting that app server for environment $envName be restarted")
     client.restartAppServer(new RestartAppServerRequest().withEnvironmentName(envName))
   }
@@ -567,7 +569,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
     val req = new RetrieveEnvironmentInfoRequest().withInfoType(EnvironmentInfoType.Tail)
     val envMap = (ebEnvMap in awseb).value
 
-    val envName = envMap.get(alias).map(_.envName).getOrElse(alias)
+    val envName = lookupEnvName(envMap, alias)
     log.info(s"Retrieving information for environment $envName")
     client.retrieveEnvironmentInfo(req.withEnvironmentName(envName)).getEnvironmentInfo.asScala foreach { envInfo =>
       log.info(s"""
@@ -586,8 +588,8 @@ object AWSEBPlugin extends sbt.AutoPlugin {
     val log = streams.value.log
     val envMap = (ebEnvMap in awseb).value
 
-    val envName1 = envMap.get(alias1).map(_.envName).getOrElse(alias1)
-    val envName2 = envMap.get(alias2).map(_.envName).getOrElse(alias2)
+    val envName1 = lookupEnvName(envMap, alias1)
+    val envName2 = lookupEnvName(envMap, alias2)
     log.info(s"Requesting a swap of the CNAME from environments ${envName1} to ${envName2}")
     (ebClient in awseb).value.swapEnvironmentCNAMEs(
         new SwapEnvironmentCNAMEsRequest()
@@ -604,7 +606,7 @@ object AWSEBPlugin extends sbt.AutoPlugin {
     val req = new TerminateEnvironmentRequest().withTerminateResources(true)
     val envMap = (ebEnvMap in awseb).value
 
-    val envName = envMap.get(alias).map(_.envName).getOrElse(alias)
+    val envName = lookupEnvName(envMap, alias)
     log.info(s"Requesting termination of environment $envName")
     val res = client.terminateEnvironment(req.withEnvironmentName(envName))
     log.info(s"""
