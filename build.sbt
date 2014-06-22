@@ -7,7 +7,7 @@ organization := "com.github.dwhjames"
 
 name := "sbt-awseb"
 
-version := "0.1.0"
+version := "0.1.1"
 
 description := "SBT plugin for Amazon Web Services Elastic Beanstalk"
 
