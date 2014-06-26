@@ -21,11 +21,6 @@
 - [Configure AWS Credentials](MANUAL.md#configure-aws-credentials)
 - Add the plugin to your `plugins.sbt`
 ```scala
-resolvers += Resolver.url(
-  "sbt-awseb-plugin",
-    url("http://dl.bintray.com/content/dwhjames/sbt-plugins"))(
-        Resolver.ivyStylePatterns)
-
 addSbtPlugin("com.github.dwhjames" % "sbt-awseb" % "0.1.1")
 ```
 - Enable the plugin
